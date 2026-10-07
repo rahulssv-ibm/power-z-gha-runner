@@ -1,0 +1,7 @@
+# id	script	profiles	expected_container	expected_vm	issue
+cpu-mem	cpu-mem.sh	vm	-	PASS	-
+disk-io	disk-io.sh	vm	-	PASS	-
+container-lifecycle	container-lifecycle.sh	vm	-	PASS	-
+kube-scale	kube-scale.sh	vm	-	PASS	-
+network	network.sh	container,vm	PASS	PASS	-
+build-source	build-source.sh	vm	-	PASS	-
