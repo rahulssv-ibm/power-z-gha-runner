@@ -1,0 +1,50 @@
+name: _suite-container
+
+on:
+  workflow_call:
+    inputs:
+      domain: { required: true, type: string }
+      arch:   { required: true, type: string }
+      os:     { required: true, type: string }
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.m.outputs.matrix }}
+    steps:
+      - id: m
+        shell: bash
+        env:
+          ARCH: ${{ inputs.arch }}
+          OS: ${{ inputs.os }}
+        run: |
+          python3 - "$ARCH" "$OS" <<'PY' >> "$GITHUB_OUTPUT"
+          import json, sys
+          arch, osv = sys.argv[1], sys.argv[2]
+          labels = [
+            ("ubuntu-22.04-ppc64le-p10", "ppc64le", "22.04"),
+            ("ubuntu-24.04-ppc64le-p10", "ppc64le", "24.04"),
+            ("ubuntu-22.04-s390x", "s390x", "22.04"),
+            ("ubuntu-24.04-s390x", "s390x", "24.04"),
+          ]
+          sel = [{"label": l, "arch": a, "os": o} for l, a, o in labels
+                 if arch in ("all", a) and osv in ("all", o)]
+          print("matrix=" + json.dumps({"include": sel}))
+          PY
+
+  test:
+    needs: setup
+    if: ${{ fromJSON(needs.setup.outputs.matrix).include[0] != null }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
+    runs-on: ${{ matrix.label }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/run-suite
+        with:
+          domain: ${{ inputs.domain }}
+          profile: container
+          arch: ${{ matrix.arch }}
+          os: ${{ matrix.os }}
