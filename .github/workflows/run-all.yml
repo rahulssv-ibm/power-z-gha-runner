@@ -1,0 +1,64 @@
+name: run-all
+
+on:
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: Which suite to run
+        type: choice
+        default: all
+        options: [all, container, vm, capability, security, stress, probe]
+      arch:
+        description: Architecture filter
+        type: choice
+        default: all
+        options: [all, ppc64le, s390x]
+      os:
+        description: Ubuntu version filter
+        type: choice
+        default: all
+        options: [all, "22.04", "24.04"]
+
+jobs:
+  c-capability:
+    if: contains(fromJSON('["all","container","capability"]'), inputs.suite)
+    uses: ./.github/workflows/_suite-container.yml
+    with: { domain: capability, arch: "${{ inputs.arch }}", os: "${{ inputs.os }}" }
+  c-security:
+    if: contains(fromJSON('["all","container","security"]'), inputs.suite)
+    uses: ./.github/workflows/_suite-container.yml
+    with: { domain: security, arch: "${{ inputs.arch }}", os: "${{ inputs.os }}" }
+  c-stress:
+    if: contains(fromJSON('["all","container","stress"]'), inputs.suite)
+    uses: ./.github/workflows/_suite-container.yml
+    with: { domain: stress, arch: "${{ inputs.arch }}", os: "${{ inputs.os }}" }
+  c-probe:
+    if: contains(fromJSON('["all","container","probe"]'), inputs.suite)
+    uses: ./.github/workflows/_suite-container.yml
+    with: { domain: probe, arch: "${{ inputs.arch }}", os: "${{ inputs.os }}" }
+
+  v-capability:
+    if: contains(fromJSON('["all","vm","capability"]'), inputs.suite)
+    uses: ./.github/workflows/_suite-vm.yml
+    with: { domain: capability, arch: "${{ inputs.arch }}", os: "${{ inputs.os }}" }
+  v-security:
+    if: contains(fromJSON('["all","vm","security"]'), inputs.suite)
+    uses: ./.github/workflows/_suite-vm.yml
+    with: { domain: security, arch: "${{ inputs.arch }}", os: "${{ inputs.os }}" }
+  v-stress:
+    if: contains(fromJSON('["all","vm","stress"]'), inputs.suite)
+    uses: ./.github/workflows/_suite-vm.yml
+    with: { domain: stress, arch: "${{ inputs.arch }}", os: "${{ inputs.os }}" }
+  v-probe:
+    if: contains(fromJSON('["all","vm","probe"]'), inputs.suite)
+    uses: ./.github/workflows/_suite-vm.yml
+    with: { domain: probe, arch: "${{ inputs.arch }}", os: "${{ inputs.os }}" }
+
+  aggregate:
+    if: always()
+    needs: [c-capability, c-security, c-stress, c-probe,
+            v-capability, v-security, v-stress, v-probe]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/aggregate-report
