@@ -3,7 +3,6 @@ description: Merge all result artifacts into one pass/fail matrix and gate on FA
 runs:
   using: composite
   steps:
-    - uses: actions/checkout@v4
     - name: Download results
       uses: actions/download-artifact@v4
       with:
@@ -11,7 +10,7 @@ runs:
         path: raw
     - name: Summarize and gate
       shell: bash
-      run: python3 .github/actions/aggregate-report/summarize.py
+      run: python3 "$GITHUB_ACTION_PATH/summarize.py"
     - name: Upload summary
       if: always()
       uses: actions/upload-artifact@v4

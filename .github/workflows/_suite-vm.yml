@@ -3,9 +3,11 @@ name: _suite-vm
 on:
   workflow_call:
     inputs:
-      domain: { required: true, type: string }
-      arch:   { required: true, type: string }
-      os:     { required: true, type: string }
+      domain:       { required: true, type: string }
+      arch:         { required: true, type: string }
+      os:           { required: true, type: string }
+      instances:    { required: false, type: string, default: "1" }
+      max_parallel: { required: false, type: string, default: "25" }
 
 jobs:
   setup:
@@ -18,26 +20,33 @@ jobs:
         env:
           ARCH: ${{ inputs.arch }}
           OS: ${{ inputs.os }}
+          INSTANCES: ${{ inputs.instances }}
         run: |
-          python3 - "$ARCH" "$OS" <<'PY' >> "$GITHUB_OUTPUT"
+          python3 - "$ARCH" "$OS" "$INSTANCES" <<'PY' >> "$GITHUB_OUTPUT"
           import json, sys
-          arch, osv = sys.argv[1], sys.argv[2]
+          arch, osv, n = sys.argv[1], sys.argv[2], int(sys.argv[3])
           labels = [
             ("ubuntu-22.04-ppc64le-vm", "ppc64le", "22.04"),
             ("ubuntu-24.04-ppc64le-vm", "ppc64le", "24.04"),
             ("ubuntu-22.04-s390x-vm", "s390x", "22.04"),
             ("ubuntu-24.04-s390x-vm", "s390x", "24.04"),
           ]
-          sel = [{"label": l, "arch": a, "os": o} for l, a, o in labels
-                 if arch in ("all", a) and osv in ("all", o)]
+          sel = [{"label": l, "arch": a, "os": o, "instance": i}
+                 for l, a, o in labels if arch in ("all", a) and osv in ("all", o)
+                 for i in range(1, n + 1)]
+          if len(sel) > 256:
+              sys.exit(f"{len(sel)} jobs exceeds GitHub's 256-per-matrix limit: narrow arch/os or lower instances")
           print("matrix=" + json.dumps({"include": sel}))
           PY
 
   test:
     needs: setup
     if: ${{ fromJSON(needs.setup.outputs.matrix).include[0] != null }}
+    name: ${{ inputs.domain }} ${{ matrix.label }} #${{ matrix.instance }}
+    timeout-minutes: 120
     strategy:
       fail-fast: false
+      max-parallel: ${{ fromJSON(inputs.max_parallel) }}
       matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
     runs-on: ${{ matrix.label }}
     steps:
@@ -48,3 +57,4 @@ jobs:
           profile: vm
           arch: ${{ matrix.arch }}
           os: ${{ matrix.os }}
+          instance: ${{ matrix.instance }}

@@ -32,9 +32,18 @@ Actions tab → **run-all** → pick:
 - `suite`: `all | container | vm | capability | security | stress | probe`
 - `arch`: `all | ppc64le | s390x`
 - `os`: `all | 22.04 | 24.04`
+- `instances`: copies of every job, to load the service (default `1`)
+- `max_parallel`: simultaneous jobs per suite (default `25`)
 
-One click (`all`) runs every domain on both profiles; the aggregate job prints
-a per `arch × os × profile × domain` matrix and fails if any check is `FAIL`.
+One click (`all`) runs every domain on both profiles. The aggregate job prints
+a per `arch × os × profile × domain` matrix (status counts plus p50/p95 script
+duration) and fails if any check is `FAIL`, if any suite job crashed or was
+cancelled, or if no results arrived at all.
+
+Service load test (replaces the old 200-job kind stress): `suite=stress`,
+`arch=ppc64le`, `os=24.04`, `instances=200`, `max_parallel=25`. GitHub caps a
+matrix at 256 jobs, so `labels × instances` must stay ≤ 256 — narrow `arch`/`os`
+for high instance counts.
 
 ## Run one test locally
 

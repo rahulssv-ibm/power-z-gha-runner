@@ -18,41 +18,54 @@ on:
         type: choice
         default: all
         options: [all, "22.04", "24.04"]
+      instances:
+        description: Copies of each job, for service load (labels x instances must be <= 256)
+        type: choice
+        default: "1"
+        options: ["1", "5", "10", "25", "50", "100", "200"]
+      max_parallel:
+        description: Max simultaneous jobs per suite
+        type: choice
+        default: "25"
+        options: ["1", "5", "10", "20", "25", "50"]
+
+permissions:
+  contents: read
 
 jobs:
   c-capability:
     if: contains(fromJSON('["all","container","capability"]'), inputs.suite)
     uses: ./.github/workflows/_suite-container.yml
-    with: { domain: capability, arch: "${{ inputs.arch }}", os: "${{ inputs.os }}" }
+    with: { domain: capability, arch: "${{ inputs.arch }}", os: "${{ inputs.os }}", instances: "${{ inputs.instances }}", max_parallel: "${{ inputs.max_parallel }}" }
   c-security:
     if: contains(fromJSON('["all","container","security"]'), inputs.suite)
     uses: ./.github/workflows/_suite-container.yml
-    with: { domain: security, arch: "${{ inputs.arch }}", os: "${{ inputs.os }}" }
+    with: { domain: security, arch: "${{ inputs.arch }}", os: "${{ inputs.os }}", instances: "${{ inputs.instances }}", max_parallel: "${{ inputs.max_parallel }}" }
   c-stress:
     if: contains(fromJSON('["all","container","stress"]'), inputs.suite)
     uses: ./.github/workflows/_suite-container.yml
-    with: { domain: stress, arch: "${{ inputs.arch }}", os: "${{ inputs.os }}" }
+    with: { domain: stress, arch: "${{ inputs.arch }}", os: "${{ inputs.os }}", instances: "${{ inputs.instances }}", max_parallel: "${{ inputs.max_parallel }}" }
   c-probe:
     if: contains(fromJSON('["all","container","probe"]'), inputs.suite)
     uses: ./.github/workflows/_suite-container.yml
-    with: { domain: probe, arch: "${{ inputs.arch }}", os: "${{ inputs.os }}" }
+    with: { domain: probe, arch: "${{ inputs.arch }}", os: "${{ inputs.os }}", instances: "${{ inputs.instances }}", max_parallel: "${{ inputs.max_parallel }}" }
 
   v-capability:
     if: contains(fromJSON('["all","vm","capability"]'), inputs.suite)
     uses: ./.github/workflows/_suite-vm.yml
-    with: { domain: capability, arch: "${{ inputs.arch }}", os: "${{ inputs.os }}" }
+    with: { domain: capability, arch: "${{ inputs.arch }}", os: "${{ inputs.os }}", instances: "${{ inputs.instances }}", max_parallel: "${{ inputs.max_parallel }}" }
   v-security:
     if: contains(fromJSON('["all","vm","security"]'), inputs.suite)
     uses: ./.github/workflows/_suite-vm.yml
-    with: { domain: security, arch: "${{ inputs.arch }}", os: "${{ inputs.os }}" }
+    with: { domain: security, arch: "${{ inputs.arch }}", os: "${{ inputs.os }}", instances: "${{ inputs.instances }}", max_parallel: "${{ inputs.max_parallel }}" }
   v-stress:
     if: contains(fromJSON('["all","vm","stress"]'), inputs.suite)
     uses: ./.github/workflows/_suite-vm.yml
-    with: { domain: stress, arch: "${{ inputs.arch }}", os: "${{ inputs.os }}" }
+    with: { domain: stress, arch: "${{ inputs.arch }}", os: "${{ inputs.os }}", instances: "${{ inputs.instances }}", max_parallel: "${{ inputs.max_parallel }}" }
   v-probe:
     if: contains(fromJSON('["all","vm","probe"]'), inputs.suite)
     uses: ./.github/workflows/_suite-vm.yml
-    with: { domain: probe, arch: "${{ inputs.arch }}", os: "${{ inputs.os }}" }
+    with: { domain: probe, arch: "${{ inputs.arch }}", os: "${{ inputs.os }}", instances: "${{ inputs.instances }}", max_parallel: "${{ inputs.max_parallel }}" }
 
   aggregate:
     if: always()
@@ -62,3 +75,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/aggregate-report
+      # A suite job that crashed before writing verdicts (setup failure, runner
+      # lost, timeout) leaves no FAIL row, so verdicts alone would read green.
+      - name: Fail if any suite job failed or was cancelled
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: |
+          echo "::error::A suite job failed or was cancelled; the matrix above may be incomplete. Check the failed job logs."
+          exit 1

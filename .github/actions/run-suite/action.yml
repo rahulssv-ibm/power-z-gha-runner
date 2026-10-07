@@ -1,5 +1,7 @@
 name: Run test suite
-description: Run one test domain for one profile and upload the results artifact.
+description: >
+  Run one test domain for one profile and upload the results artifact.
+  The calling job must check out the repository first.
 inputs:
   domain:
     description: Test domain (capability|security|stress|probe)
@@ -13,29 +15,34 @@ inputs:
   os:
     description: Ubuntu version (22.04|24.04)
     required: true
+  instance:
+    description: Instance number when the suite is fanned out for load
+    required: false
+    default: "1"
 runs:
   using: composite
   steps:
-    - uses: actions/checkout@v4
+    # kind is only used by kind-build/kube-scale, which run on ppc64le VMs.
     - name: Setup kind
-      if: inputs.domain == 'capability' || inputs.domain == 'stress'
+      if: inputs.arch == 'ppc64le' && inputs.profile == 'vm' && (inputs.domain == 'capability' || inputs.domain == 'stress')
       uses: ./.github/actions/setup-kind-ppc64le
     - name: Run ${{ inputs.domain }}
-      id: run
       shell: bash
       env:
+        DOMAIN: ${{ inputs.domain }}
         PROFILE: ${{ inputs.profile }}
         ARCH: ${{ inputs.arch }}
         OS: ${{ inputs.os }}
+        INSTANCE: ${{ inputs.instance }}
       run: |
         set -uo pipefail
         export RESULT_DIR="$RUNNER_TEMP/results"
         mkdir -p "$RESULT_DIR"
-        bash tests/lib/runner.sh "${{ inputs.domain }}"; rc=$?
+        bash tests/lib/runner.sh "$DOMAIN"; rc=$?
         {
-          echo "## ${{ inputs.domain }} / ${{ inputs.profile }} / ${{ inputs.arch }} / ${{ inputs.os }}"
+          echo "## $DOMAIN / $PROFILE / $ARCH / $OS / #$INSTANCE"
           echo '```'
-          sed 's/\t/ | /g' "$RESULT_DIR/verdict-${{ inputs.domain }}.tsv" 2>/dev/null || echo "(no verdict file)"
+          sed 's/\t/ | /g' "$RESULT_DIR/verdict-$DOMAIN.tsv" 2>/dev/null || echo "(no verdict file)"
           echo '```'
         } >> "$GITHUB_STEP_SUMMARY"
         exit $rc
@@ -43,6 +50,6 @@ runs:
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: result-${{ inputs.domain }}-${{ inputs.profile }}-${{ inputs.arch }}-${{ inputs.os }}
+        name: result-${{ inputs.domain }}-${{ inputs.profile }}-${{ inputs.arch }}-${{ inputs.os }}-${{ inputs.instance }}
         path: ${{ runner.temp }}/results
         retention-days: 14
