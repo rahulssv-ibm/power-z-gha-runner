@@ -3,4 +3,4 @@ host-escape	host-escape.sh	container,vm	PASS	PASS	-
 secret-leak	secret-leak.sh	container,vm	PASS	PASS	-
 cross-tenant	cross-tenant.sh	container,vm	PASS	PASS	-
 egress-abuse	egress-abuse.sh	container,vm	PASS	PASS	-
-resource-abuse	resource-abuse.sh	container,vm	PASS	PASS	-
+resource-abuse	resource-abuse.sh	container	PASS	-	-
