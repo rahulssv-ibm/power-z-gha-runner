@@ -1,0 +1,12 @@
+# id	script	profiles	expected_container	expected_vm	issue
+kernel-modules	kernel-modules.sh	container,vm	XFAIL	PASS	43
+netns	netns.sh	container,vm	XFAIL	PASS	43
+ip-mgmt	ip-mgmt.sh	container,vm	XFAIL	PASS	43
+dev-ioctl	dev-ioctl.sh	container,vm	XFAIL	PASS	43
+mount-ops	mount-ops.sh	container,vm	XFAIL	PASS	7
+overlayfs-mkosi	overlayfs-mkosi.sh	container,vm	XFAIL	PASS	7
+luks-nbd	luks-nbd.sh	container,vm	XFAIL	PASS	44
+podman-net	podman-net.sh	container,vm	XFAIL	PASS	63
+cpu-count	cpu-count.sh	container,vm	PASS	PASS	38
+kvm	kvm.sh	container,vm	XFAIL	PASS	33
+falco-delete-module	falco-delete-module.sh	container,vm	XFAIL	PASS	3
