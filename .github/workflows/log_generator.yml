@@ -16,36 +16,36 @@ jobs:
           #   worker_files: "/home/runner/runners/2.321.0/_diag/Worker_*"
           # - os: ubuntu-24.04-s390x
           #   runner_owner: "actions-runner-s390x"
-          #   runner_files: "/opt/runner/_diag/Runner_*"
-          #   worker_files: "/opt/runner/_diag/Worker_*"
+          #   runner_files: "/opt/runner-cache/_diag/Runner_*"
+          #   worker_files: "/opt/runner-cache/_diag/Worker_*"
           # - os: ubuntu-24.04-ppc64le
           #   runner_owner: "actions-runner-ppc64le"
-          #   runner_files: "/opt/runner/_diag/Runner_*"
-          #   worker_files: "/opt/runner/_diag/Worker_*"
+          #   runner_files: "/opt/runner-cache/_diag/Runner_*"
+          #   worker_files: "/opt/runner-cache/_diag/Worker_*"
           # - os: ubuntu-24.04-ppc64le-osu1
           #   runner_owner: "actions-runner-ppc64le"
-          #   runner_files: "/opt/runner/_diag/Runner_*"
-          #   worker_files: "/opt/runner/_diag/Worker_*"
+          #   runner_files: "/opt/runner-cache/_diag/Runner_*"
+          #   worker_files: "/opt/runner-cache/_diag/Worker_*"
           # - os: ubuntu-24.04-ppc64le
           #   runner_owner: "actions-runner-ppc64le"
-          #   runner_files: "/opt/runner/_diag/Runner_*"
-          #   worker_files: "/opt/runner/_diag/Worker_*"
+          #   runner_files: "/opt/runner-cache/_diag/Runner_*"
+          #   worker_files: "/opt/runner-cache/_diag/Worker_*"
           # - os: ubuntu-24.04-ppc64le-p10
           #   runner_owner: "actions-runner-ppc64le"
-          #   runner_files: "/opt/runner/_diag/Runner_*"
-          #   worker_files: "/opt/runner/_diag/Worker_*"
+          #   runner_files: "/opt/runner-cache/_diag/Runner_*"
+          #   worker_files: "/opt/runner-cache/_diag/Worker_*"
           - os: ubuntu-24.04-ppc64le-p10
             runner_owner: "actions-runner-ppc64le"
-            runner_files: "/opt/runner/_diag/Runner_*"
-            worker_files: "/opt/runner/_diag/Worker_*"
+            runner_files: "/opt/runner-cache/_diag/Runner_*"
+            worker_files: "/opt/runner-cache/_diag/Worker_*"
           # - os: ubuntu-24.04-ppc64le-debug
           #   runner_owner: "actions-runner-ppc64le"
-          #   runner_files: "/opt/runner/_diag/Runner_*"
-          #   worker_files: "/opt/runner/_diag/Worker_*"
+          #   runner_files: "/opt/runner-cache/_diag/Runner_*"
+          #   worker_files: "/opt/runner-cache/_diag/Worker_*"
           # - os: ubuntu-24.04-s390x
           #   runner_owner: "actions-runner-ppc64le"
-          #   runner_files: "/opt/runner/_diag/Runner_*"
-          #   worker_files: "/opt/runner/_diag/Worker_*"
+          #   runner_files: "/opt/runner-cache/_diag/Runner_*"
+          #   worker_files: "/opt/runner-cache/_diag/Worker_*"
     steps:
       - name: Checkout Code
         uses: actions/checkout@v5
