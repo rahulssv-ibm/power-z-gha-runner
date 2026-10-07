@@ -1,0 +1,47 @@
+name: Setup kind (ppc64le)
+description: Install Go, build kind with the ppc64le patch, and install kubectl.
+inputs:
+  go-version:
+    description: Go toolchain version
+    default: "1.24.0"
+  kind-version:
+    description: kind git tag to build
+    default: "v0.32.0"
+  kubectl-version:
+    description: kubectl release to install
+    default: "v1.29.3"
+runs:
+  using: composite
+  steps:
+    - name: Install Go
+      shell: bash
+      run: |
+        set -euo pipefail
+        ARCH="$(uname -m)"; OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
+        T="go${{ inputs.go-version }}.${OS}-${ARCH}.tar.gz"
+        mkdir -p "$HOME/goroot"
+        wget -q "https://go.dev/dl/${T}" -O "$T"
+        tar -xzf "$T" -C "$HOME/goroot" --strip-components=1 && rm -f "$T"
+        echo "GOROOT=$HOME/goroot" >> "$GITHUB_ENV"
+        echo "GOPATH=$HOME/go"     >> "$GITHUB_ENV"
+        echo "$HOME/goroot/bin"    >> "$GITHUB_PATH"
+        echo "$HOME/.local/bin"    >> "$GITHUB_PATH"
+    - name: Build kind
+      shell: bash
+      run: |
+        set -euo pipefail
+        git clone -b "${{ inputs.kind-version }}" https://github.com/kubernetes-sigs/kind
+        cd kind
+        wget -q "https://raw.githubusercontent.com/ppc64le-cloud/kind-image/main/build-ppc64le.patch" -O ../p.patch
+        git apply ../p.patch
+        "$HOME/goroot/bin/go" version
+        make kind
+        mkdir -p "$HOME/.local/bin" && cp bin/kind "$HOME/.local/bin/kind"
+    - name: Install kubectl
+      shell: bash
+      run: |
+        set -euo pipefail
+        mkdir -p "$HOME/.local/bin"
+        curl -fL -o "$HOME/.local/bin/kubectl" \
+          "https://dl.k8s.io/release/${{ inputs.kubectl-version }}/bin/linux/ppc64le/kubectl"
+        chmod +x "$HOME/.local/bin/kubectl"
