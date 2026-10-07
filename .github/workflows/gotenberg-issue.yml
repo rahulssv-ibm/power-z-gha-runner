@@ -13,13 +13,13 @@ jobs:
           # - os: ubuntu-24.04-ppc64le
           #   arch: "ppc64le"
           #   runner_owner: "actions-runner-ppc64le"
-          #   runner_files: "/opt/runner/_diag/Runner_*"
-          #   worker_files: "/opt/runner/_diag/Worker_*"
+          #   runner_files: "/opt/runner-cache/_diag/Runner_*"
+          #   worker_files: "/opt/runner-cache/_diag/Worker_*"
           - os: ubuntu-24.04-s390x
             arch: "s390x"
             runner_owner: "actions-runner-ppc64le"
-            runner_files: "/opt/runner/_diag/Runner_*"
-            worker_files: "/opt/runner/_diag/Worker_*"
+            runner_files: "/opt/runner-cache/_diag/Runner_*"
+            worker_files: "/opt/runner-cache/_diag/Worker_*"
     steps:
       - name: Checkout Code
         uses: actions/checkout@v5

@@ -2,6 +2,8 @@
 
 Validation suite for our self-hosted GitHub Actions runner service on IBM
 Power (`ppc64le`) and IBM Z (`s390x`), across container and VM profiles.
+Works unchanged on LXD and Incus hosts; the `probe/host-info` result records
+which backend (`backend=lxd|incus`) and sandbox type ran each job.
 
 ## Layout
 

@@ -12,8 +12,13 @@ _detail_file() { echo "${DETAIL_FILE:-${RESULT_DIR:-/tmp/results}/detail-${DOMAI
 _emit() { # status id reason
   local f; f="$(_detail_file)"
   mkdir -p "$(dirname "$f")"
+  # One record per line: reasons can carry multi-line commands, so flatten
+  # newlines/tabs, squeeze spaces, and cap the length.
+  local r="${3:-}"
+  r="${r//$'\n'/ }"; r="${r//$'\t'/ }"
+  r="$(printf '%s' "$r" | tr -s ' ')"; r="${r:0:200}"
   printf 'RESULT\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
-    "$2" "${DOMAIN:-unknown}" "${PROFILE:-unknown}" "${ARCH:-unknown}" "${OS:-unknown}" "$1" "${3:-}" \
+    "$2" "${DOMAIN:-unknown}" "${PROFILE:-unknown}" "${ARCH:-unknown}" "${OS:-unknown}" "$1" "$r" \
     >> "$f"
 }
 
@@ -43,11 +48,18 @@ if [ "${1:-}" = "--selftest" ]; then
   expect_ok      "t-eok"  true
   expect_blocked "t-eblk" false
   expect_ok      "t-eok2" false   # should record FAIL
+  expect_blocked "t-eblk2" true   # permitted -> boundary breached -> FAIL
   grep -q $'RESULT\tt-ok\tself\tp\ta\to\tPASS\tr1'  "$DETAIL_FILE" || { echo "ok line wrong"; exit 1; }
   grep -q $'\tt-fail\t.*\tFAIL\tr2'  "$DETAIL_FILE" || { echo "fail line wrong"; exit 1; }
   grep -q $'\tt-xf\t.*\tXFAIL\tr3'   "$DETAIL_FILE" || { echo "xfail wrong"; exit 1; }
   grep -q $'\tt-skip\t.*\tSKIP\tr4'  "$DETAIL_FILE" || { echo "skip wrong"; exit 1; }
   grep -q $'\tt-eblk\t.*\tPASS\t'    "$DETAIL_FILE" || { echo "expect_blocked wrong"; exit 1; }
   grep -q $'\tt-eok2\t.*\tFAIL\t'    "$DETAIL_FILE" || { echo "expect_ok fail path wrong"; exit 1; }
+  grep -q $'\tt-eblk2\t.*\tFAIL\t'   "$DETAIL_FILE" || { echo "expect_blocked breach path wrong"; exit 1; }
+  assert_finish && { echo "assert_finish should be non-zero after a fail"; exit 1; }
+  ok "t-multi" $'line one\n\tline two'   # multi-line reason must stay one record
+  [ "$(grep -c '^RESULT' "$DETAIL_FILE")" -eq "$(wc -l < "$DETAIL_FILE" | tr -d ' ')" ] \
+    || { echo "a reason broke a record across lines"; exit 1; }
+  grep -q $'\tt-multi\t.*\tPASS\tline one line two$' "$DETAIL_FILE" || { echo "reason not flattened"; exit 1; }
   echo "assert.sh selftest: OK"
 fi
