@@ -10,3 +10,9 @@ podman-net	podman-net.sh	container,vm	XFAIL	PASS	63
 cpu-count	cpu-count.sh	container,vm	PASS	PASS	38
 kvm	kvm.sh	container,vm	XFAIL	PASS	33
 falco-delete-module	falco-delete-module.sh	container,vm	XFAIL	PASS	3
+mtu-build	mtu-build.sh	container,vm	XFAIL	PASS	59
+mmdebstrap-dns	mmdebstrap-dns.sh	container,vm	XFAIL	PASS	43
+rscrypto-perf	rscrypto-perf.sh	container,vm	XFAIL	PASS	71
+manageiq-mock	manageiq-mock.sh	container,vm	XFAIL	PASS	78
+kata-pause	kata-pause.sh	container,vm	XFAIL	PASS	43
+kind-build	kind-build.sh	vm	-	PASS	49
