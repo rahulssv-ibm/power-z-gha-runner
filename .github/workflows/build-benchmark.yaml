@@ -1,0 +1,222 @@
+# This workflow runs heavy build-from-source workloads across architectures to
+# compare performance and validate compatibility between official GitHub runners
+# and IBM Z runners.
+name: build-benchmark
+
+on:
+  workflow_dispatch:
+
+jobs:
+  redis-build:
+    name: Redis (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+          - arch: s390x
+            runner: ubuntu-24.04-s390x-vm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    steps:
+      - name: Build Redis from source
+        run: |
+          start=$SECONDS
+          git clone --depth 1 --branch 7.4.0 https://github.com/redis/redis.git
+          cd redis
+          make -j$(nproc)
+          elapsed=$(( SECONDS - start ))
+          echo "### Redis build: ${elapsed}s on ${{ matrix.arch }}"
+
+  postgresql-build:
+    name: PostgreSQL (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+          - arch: s390x
+            runner: ubuntu-24.04-s390x-vm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    steps:
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libreadline-dev zlib1g-dev flex bison libxml2-dev libxslt-dev libssl-dev pkg-config libicu-dev
+
+      - name: Build PostgreSQL from source
+        run: |
+          start=$SECONDS
+          git clone --depth 1 --branch REL_17_0 https://github.com/postgres/postgres.git
+          cd postgres
+          ./configure --prefix=/tmp/pg-install
+          make -j$(nproc)
+          make install
+          elapsed=$(( SECONDS - start ))
+          echo "### PostgreSQL build: ${elapsed}s on ${{ matrix.arch }}"
+
+  node-build:
+    name: Node.js (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+          - arch: s390x
+            runner: ubuntu-24.04-s390x-vm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    steps:
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3 g++ make python3-pip
+
+      - name: Build Node.js from source
+        run: |
+          start=$SECONDS
+          git clone --depth 1 --branch v22.0.0 https://github.com/nodejs/node.git
+          cd node
+          ./configure
+          make -j$(nproc)
+          ./node -v
+          elapsed=$(( SECONDS - start ))
+          echo "### Node.js build: ${elapsed}s on ${{ matrix.arch }}"
+
+  container-build:
+    name: Container build (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+          - arch: s390x
+            runner: ubuntu-24.04-s390x-vm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    steps:
+      - name: Build multi-stage Go app container
+        run: |
+          mkdir -p /tmp/container-test && cd /tmp/container-test
+
+          cat > main.go << 'EOF'
+          package main
+
+          import (
+            "fmt"
+            "net/http"
+            "runtime"
+          )
+
+          func main() {
+            http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+              fmt.Fprintf(w, "Hello from %s/%s\n", runtime.GOOS, runtime.GOARCH)
+            })
+            fmt.Printf("Starting server on :8080 (%s/%s)\n", runtime.GOOS, runtime.GOARCH)
+            http.ListenAndServe(":8080", nil)
+          }
+          EOF
+
+          cat > go.mod << 'EOF'
+          module container-test
+          go 1.22
+          EOF
+
+          cat > Dockerfile << 'EOF'
+          FROM golang:1.22 AS builder
+          WORKDIR /app
+          COPY go.mod main.go ./
+          RUN CGO_ENABLED=0 go build -o server .
+
+          FROM alpine:latest
+          COPY --from=builder /app/server /server
+          EXPOSE 8080
+          CMD ["/server"]
+          EOF
+
+          start=$SECONDS
+          docker build -t test-app:latest .
+          elapsed=$(( SECONDS - start ))
+          echo "### Multi-stage container build: ${elapsed}s on ${{ matrix.arch }}"
+
+      - name: Run and test container
+        run: |
+          docker run -d --name test-app -p 8080:8080 test-app:latest
+          sleep 2
+          curl -s http://localhost:8080
+          docker stop test-app
+          docker rm test-app
+          echo "Container run: OK"
+
+      - name: Build Python app container
+        run: |
+          mkdir -p /tmp/python-test && cd /tmp/python-test
+
+          cat > app.py << 'EOF'
+          import platform
+          import sys
+          print(f"Python {sys.version}")
+          print(f"Architecture: {platform.machine()}")
+          print(f"Platform: {platform.platform()}")
+          EOF
+
+          cat > requirements.txt << 'EOF'
+          requests>=2.31
+          pyyaml>=6.0
+          EOF
+
+          cat > Dockerfile << 'EOF'
+          FROM python:3.12-slim
+          WORKDIR /app
+          COPY requirements.txt .
+          RUN pip install --no-cache-dir -r requirements.txt
+          COPY app.py .
+          CMD ["python", "app.py"]
+          EOF
+
+          start=$SECONDS
+          docker build -t python-app:latest .
+          elapsed=$(( SECONDS - start ))
+          echo "### Python container build: ${elapsed}s on ${{ matrix.arch }}"
+          docker run --rm python-app:latest
+
+  containerd-build:
+    name: containerd (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+          - arch: s390x
+            runner: ubuntu-24.04-s390x-vm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    steps:
+      - name: Build containerd from source
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config libbtrfs-dev libseccomp-dev
+
+          start=$SECONDS
+          git clone --depth 1 --branch v1.7.27 https://github.com/containerd/containerd.git
+          cd containerd
+          make -j$(nproc)
+          ./bin/containerd --version
+          elapsed=$(( SECONDS - start ))
+          echo "### containerd build: ${elapsed}s on ${{ matrix.arch }}"

@@ -1,0 +1,64 @@
+name: Log Generator Workflow
+
+on:
+  workflow_dispatch:
+
+jobs:
+  generate-logs:
+    name: Generate Logs - ${{ matrix.os }} [${{ matrix.runner_owner }}]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          # - os: ubuntu-24.04
+          #   runner_owner: "github-hosted"
+          #   runner_files: "/home/runner/runners/2.321.0/_diag/Runner_*"
+          #   worker_files: "/home/runner/runners/2.321.0/_diag/Worker_*"
+          # - os: ubuntu-24.04-s390x
+          #   runner_owner: "actions-runner-s390x"
+          #   runner_files: "/opt/runner/_diag/Runner_*"
+          #   worker_files: "/opt/runner/_diag/Worker_*"
+          # - os: ubuntu-24.04-ppc64le
+          #   runner_owner: "actions-runner-ppc64le"
+          #   runner_files: "/opt/runner/_diag/Runner_*"
+          #   worker_files: "/opt/runner/_diag/Worker_*"
+          # - os: ubuntu-24.04-ppc64le-osu1
+          #   runner_owner: "actions-runner-ppc64le"
+          #   runner_files: "/opt/runner/_diag/Runner_*"
+          #   worker_files: "/opt/runner/_diag/Worker_*"
+          # - os: ubuntu-24.04-ppc64le
+          #   runner_owner: "actions-runner-ppc64le"
+          #   runner_files: "/opt/runner/_diag/Runner_*"
+          #   worker_files: "/opt/runner/_diag/Worker_*"
+          # - os: ubuntu-24.04-ppc64le-p10
+          #   runner_owner: "actions-runner-ppc64le"
+          #   runner_files: "/opt/runner/_diag/Runner_*"
+          #   worker_files: "/opt/runner/_diag/Worker_*"
+          - os: ubuntu-24.04-ppc64le-p10
+            runner_owner: "actions-runner-ppc64le"
+            runner_files: "/opt/runner/_diag/Runner_*"
+            worker_files: "/opt/runner/_diag/Worker_*"
+          # - os: ubuntu-24.04-ppc64le-debug
+          #   runner_owner: "actions-runner-ppc64le"
+          #   runner_files: "/opt/runner/_diag/Runner_*"
+          #   worker_files: "/opt/runner/_diag/Worker_*"
+          # - os: ubuntu-24.04-s390x
+          #   runner_owner: "actions-runner-ppc64le"
+          #   runner_files: "/opt/runner/_diag/Runner_*"
+          #   worker_files: "/opt/runner/_diag/Worker_*"
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v5
+        
+      - name: Generate Logs
+        run: |
+          echo "Generating large logs on ${{ matrix.os }}..."
+          echo "Using Runner Owner: ${{ matrix.runner_owner }}..."
+          strace -e trace=network,open,read,write time yes "example line log" | head -n 100000000
+          echo "Log generation complete for ${{ matrix.os }}."
+      - name: Print Runner logs
+        run: |
+          sudo cat ${{ matrix.runner_files }}          
+      - name: Print Worker logs
+        run: |
+          sudo cat ${{ matrix.worker_files }}

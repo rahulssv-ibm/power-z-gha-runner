@@ -1,0 +1,65 @@
+name: SHELL
+on:
+  workflow_dispatch:
+  
+jobs:
+  amd_shell:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Env Snoop
+      run: |
+        ls -lha
+        pwd
+        whoami
+        df -h
+        echo "env"
+        env
+        echo "id"
+        id
+        echo "groups"
+        groups
+        echo "mounts"
+        mount | column -t
+        sudo su - 
+        cat /etc/hosts
+        ip a
+        ip r
+        curl ifconfig.me
+        curl -I https://nicehash.com || echo "Blocked or failed"
+        sudo dmesg | grep -i hypervisor
+        
+    # - name: Setup tmate session
+    #   uses: mxschmitt/action-tmate@v3
+    #   with:
+    #     limit-access-to-actor: false
+        
+  power_shell:
+    runs-on: ubuntu-24.04-ppc64le
+    steps:
+    - uses: actions/checkout@v4
+    # - name: Setup tmate session
+    #   uses: mxschmitt/action-tmate@v3
+      
+    - name: Env Snoop
+      run: |
+        ls -lha
+        pwd
+        whoami
+        df -h
+        echo "env"
+        env
+        echo "id"
+        id
+        echo "groups"
+        groups
+        echo "mounts"
+        mount | column -t
+        sudo su - 
+        cat /etc/hosts
+        ip a
+        ip r
+        curl ifconfig.me
+        curl -I https://nicehash.com || echo "Blocked or failed"
+        sudo dmesg | grep -i hypervisor

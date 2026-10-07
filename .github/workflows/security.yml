@@ -1,0 +1,45 @@
+name: Self-Hosted Runner Security Audit
+
+on:
+  workflow_dispatch:
+
+jobs:
+  security-audit:
+    name: LXD Container Security Check
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-24.04
+          - os: ubuntu-24.04-ppc64le
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: System Security Audit
+      run: |
+        echo "=== LXD Configuration Check ==="
+        lxc config show | grep -i 'security.privileged\|security.idmap' || true
+        
+        echo "\n=== Privilege Escalation Checks ==="
+        id
+        sudo -l
+        grep -i 'lxd' /etc/group
+        
+        echo "\n=== Mount Inspection ==="
+        mount | grep -i '/dev/|/proc|/sys' || true
+        
+        echo "\n=== Network Security ==="
+        ip link show
+        # iptables -L -n -v
+        # ss -tuln
+        
+        echo "\n=== Vulnerability Scanning ==="
+        sudo apt-get update && sudo apt-get install -y lynis
+        lynis audit system --quick
+        
+        echo "\n=== LXD API Access Test ==="
+        curl -s --unix-socket /var/snap/lxd/common/lxd/unix.socket lxd/1.0 || true
+        
+        echo "\n=== Sensitive File Checks ==="
+        find / -xdev \( -name "*.pem" -o -name "*.key" -o -name "*.crt" \) -exec ls -la {} \; 2>/dev/null || true

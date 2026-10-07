@@ -1,0 +1,97 @@
+# This workflow stress-tests network reliability inside VM runners by exercising
+# concurrent DNS resolution, parallel package installs, Docker image pulls,
+# multi-stage Docker builds, and git clones — all patterns that have shown
+# intermittent failures due to the multi-layer networking in VM runners.
+name: network-stress-test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  network-stress-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner:
+          - ubuntu-22.04
+          - ubuntu-24.04
+          - ubuntu-22.04-arm
+          - ubuntu-24.04-arm
+          - ubuntu-22.04-s390x-vm
+          - ubuntu-24.04-s390x-vm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+
+    steps:
+      - name: Parallel DNS resolution
+        run: |
+          echo "=== Concurrent DNS lookups ==="
+          for host in github.com download.docker.com ports.ubuntu.com registry-1.docker.io registry.k8s.io registry.fedoraproject.org quay.io; do
+            (nslookup "$host" && echo "DNS $host: OK") &
+          done
+          wait
+          echo "All DNS lookups completed"
+
+      - name: Parallel apt installs
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            curl wget git jq tree htop make gcc g++ \
+            python3 python3-pip python3-venv \
+            ca-certificates gnupg lsb-release \
+            iproute2 iputils-ping dnsutils
+
+      - name: Parallel docker pulls
+        run: |
+          echo "=== Concurrent docker pulls ==="
+          docker pull alpine:latest &
+          docker pull ubuntu:noble &
+          docker pull python:3.12-slim &
+          docker pull golang:1.22 &
+          docker pull node:20-slim &
+          wait
+          echo "All pulls completed"
+          docker images
+
+      - name: Docker build with parallel stages
+        run: |
+          mkdir -p /tmp/build-test && cd /tmp/build-test
+          cat << 'DOCKERFILE' > Dockerfile
+          FROM ubuntu:noble AS stage1
+          RUN apt-get update && apt-get install -y curl git
+
+          FROM ubuntu:noble AS stage2
+          RUN apt-get update && apt-get install -y wget jq
+
+          FROM ubuntu:noble AS stage3
+          RUN apt-get update && apt-get install -y python3 python3-pip
+
+          FROM ubuntu:noble AS final
+          COPY --from=stage1 /usr/bin/curl /usr/local/bin/curl
+          COPY --from=stage2 /usr/bin/wget /usr/local/bin/wget
+          COPY --from=stage3 /usr/bin/python3 /usr/local/bin/python3
+          RUN echo "done"
+          DOCKERFILE
+          docker build --progress=plain .
+
+      - name: Parallel git clones
+        run: |
+          echo "=== Concurrent git clones ==="
+          git clone --depth 1 https://github.com/containerd/containerd /tmp/containerd &
+          git clone --depth 1 https://github.com/opencontainers/runc /tmp/runc &
+          git clone --depth 1 https://github.com/containernetworking/plugins /tmp/cni &
+          git clone --depth 1 https://github.com/kubernetes-sigs/cri-tools /tmp/cri &
+          git clone --depth 1 https://github.com/containers/podman /tmp/podman &
+          wait
+          echo "All clones completed"
+
+      - name: Sustained download test
+        run: |
+          echo "=== Large file downloads ==="
+          for i in 1 2 3; do
+            echo "Round $i..."
+            curl -sSL -o /dev/null -w "github.com: %{http_code} %{time_total}s\n" https://github.com
+            curl -sSL -o /dev/null -w "docker.com: %{http_code} %{time_total}s\n" https://download.docker.com
+            curl -sSL -o /dev/null -w "ubuntu:     %{http_code} %{time_total}s\n" http://ports.ubuntu.com
+          done
+          echo "All downloads completed"

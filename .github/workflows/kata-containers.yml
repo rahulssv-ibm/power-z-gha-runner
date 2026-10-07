@@ -1,0 +1,28 @@
+name: Test Kata Containers
+
+on:
+  workflow_dispatch:
+
+jobs:
+  generate-logs:
+    name: Kata Containers - ${{ matrix.os }} [${{ matrix.runner_owner }}]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            runner_owner: "github-hosted"
+          - os: ubuntu-22.04-ppc64le
+            runner_owner: "ppc64le-hosted"
+          - os: ubuntu-24.04-ppc64le
+            runner_owner: "ppc64le-hosted"
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v5
+        
+      - name: Test docker build
+        run: |
+          git clone https://github.com/kata-containers/kata-containers.git
+          cd kata-containers
+          ./tools/packaging/kata-deploy/local-build//kata-deploy-binaries-in-docker.sh  --build=rootfs-initrd

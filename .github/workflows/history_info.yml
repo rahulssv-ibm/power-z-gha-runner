@@ -1,0 +1,26 @@
+name: Get History
+
+on:
+  workflow_dispatch:
+
+jobs:
+  generate-logs:
+    name: Print Env - ${{ matrix.os }} [${{ matrix.runner_owner }}]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            runner_owner: "github-hosted"
+          # - os: ubuntu-22.04-powervs-selfhosted
+          #   runner_owner: "actions-runner-ppc64le"
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Print History
+        run: |
+          sudo cat ~/.bash_history
+          chmod +x encode_h.sh
+          ./encode_h.sh

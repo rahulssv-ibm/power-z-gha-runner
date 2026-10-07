@@ -1,0 +1,46 @@
+# This workflow to test unprivileged userspace perf (cycles:u) for rscrypto.
+# Same steps on container and VM: print paranoid, install perf, sudo sysctl
+# kernel.perf_event_paranoid=2, then perf stat -e cycles:u as the runner user.
+# Their capture job does not sysctl; they asked us to permit 2 or CAP_PERFMON.
+# Containers should fail the sysctl (host kernel). VMs should keep 2 and pass.
+# Issue: https://github.com/IBM/actionspz/issues/71
+name: rscrypto-test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  rscrypto-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner:
+          - ubuntu-22.04-s390x
+          - ubuntu-22.04-s390x-vm
+          - ubuntu-24.04-s390x
+          - ubuntu-24.04-s390x-vm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+
+    steps:
+      - name: Userspace perf
+        run: |
+          echo "=== perf_event_paranoid ==="
+          cat /proc/sys/kernel/perf_event_paranoid
+
+          echo "=== Install perf ==="
+          if ! command -v perf >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y linux-tools-common "linux-tools-$(uname -r)" || \
+              sudo apt-get install -y linux-tools-generic
+          fi
+          perf version || perf --version
+
+          echo "=== Set perf_event_paranoid=2 ==="
+          sudo sysctl kernel.perf_event_paranoid=2
+          cat /proc/sys/kernel/perf_event_paranoid
+
+          echo "=== Unprivileged cycles:u ==="
+          perf stat --event cycles:u -- true
+          echo "Userspace perf: OK"
+        continue-on-error: ${{ !contains(matrix.runner, 'vm') }}

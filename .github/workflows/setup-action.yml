@@ -1,0 +1,48 @@
+name: Setup-action
+
+on:
+  workflow_dispatch:
+
+jobs:
+  generate-logs:
+    # Updated name to reflect the specific Java version running
+    name: Runner Info - ${{ matrix.os }} [Java ${{ matrix.java-version }}]
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # 1. Define the variables to multiply here (Cross-product)
+        os: [ubuntu-24.04, ubuntu-24.04-ppc64le, ubuntu-24.04-s390x]
+        java-version: [11, 17, 21]
+        
+        # 2. Use include to add extra metadata to specific OS keys
+        include:
+          - os: ubuntu-24.04
+            runner_owner: "github-hosted"
+            arch: "x64"
+
+          - os: ubuntu-24.04-ppc64le
+            runner_owner: "ppc64le-hosted"
+            arch: "ppc64le"
+
+          - os: ubuntu-24.04-s390x
+            runner_owner: "s390x-hosted"
+            arch: "s390x"
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4  # Fixed: v5 does not exist yet
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          architecture: ${{ matrix.arch }}
+          # Optional: Add node-version if needed, e.g., node-version: 20
+
+      - name: Set up Java
+        uses: actions/setup-java@v4 # Fixed: v5 does not exist yet
+        with:
+          distribution: semeru
+          java-version: ${{ matrix.java-version }} # Now passes a single string (e.g., "17")
+          architecture: ${{ matrix.arch }}

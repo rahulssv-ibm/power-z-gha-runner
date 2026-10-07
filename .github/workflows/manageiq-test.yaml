@@ -1,0 +1,36 @@
+# This workflow to test mock command with regards to the issue
+# below where AppArmor is blocking specific operations.
+# This should pass if AppArmor is disabled or if using a VM.
+# Issue: https://github.com/IBM/actionspz/issues/78
+name: manageiq-test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  manageiq-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner:
+          - ubuntu-22.04-s390x
+          - ubuntu-22.04-s390x-vm
+          - ubuntu-24.04-s390x
+          - ubuntu-24.04-s390x-vm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            -f test-files/manageiq.Dockerfile \
+            -t mock:latest \
+            .
+
+      - name: Test mock command
+        run: |
+          docker run --privileged --rm mock:latest mock -r fedora-43-s390x --init
+        continue-on-error: ${{ !contains(matrix.runner, 'vm') }}

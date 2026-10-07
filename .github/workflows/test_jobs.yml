@@ -1,0 +1,37 @@
+# .github/workflows/test_20_jobs.yml
+name: 20 Job Test Workflow (ppc64le & s390x)
+
+# This allows you to trigger the workflow manually from the
+# GitHub Actions tab by clicking "Run workflow"
+on:
+  workflow_dispatch:
+
+jobs:
+  # This single job definition will be expanded into 20 jobs
+  # based on the matrix configuration below.
+  test-job:
+    
+    # The strategy matrix defines the combinations to run
+    strategy:
+      fail-fast: false # Set to true if you want all jobs to stop if one fails
+      matrix:
+        # 1. First dimension: The runner labels
+        architecture:
+          - ubuntu-24.04-ppc64le
+          # - ubuntu-24.04-s390x
+          
+        # 2. Second dimension: A simple counter (1 to 10)
+        # Result: 2 (architectures) * 10 (instances) = 20 total jobs
+        instance: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,12, 13, 14, 15, 16, 17, 18, 19, 20]
+
+    # Use the label from the matrix for the 'runs-on' key
+    runs-on: ${{ matrix.architecture }}
+
+    steps:
+      - name: Show job details
+        run: |
+          echo "Running test instance ${{ matrix.instance }} on ${{ matrix.architecture }}"
+          echo "Host architecture:"
+          uname -m
+          echo "Job complete. Sleeping for 5s."
+          sleep 5

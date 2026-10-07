@@ -1,0 +1,32 @@
+name: Monitor CI
+
+on:
+  # schedule:
+  #   - cron: '0 * * * *'  
+  workflow_dispatch:       # Allow manual triggering
+
+jobs:
+  generate-logs:
+    name: Monitor - ${{ matrix.os }} [${{ matrix.runner_owner }}]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            runner_owner: "github-hosted"
+          - os: ubuntu-24.04-ppc64le
+            runner_owner: "actions-runner-ppc64le"
+          - os: ubuntu-22.04-ppc64le
+            runner_owner: "actions-runner-ppc64le"
+          - os: ubuntu-24.04-ppc64le-p10
+            runner_owner: "actions-runner-ppc64le-p10"
+          - os: ubuntu-22.04-ppc64le-p10
+            runner_owner: "actions-runner-ppc64le-p10"
+          - os: ubuntu-24.04-s390x
+            runner_owner: "actions-runner-s390x"
+          - os: ubuntu-22.04-s390x
+            runner_owner: "actions-runner-s390x"
+    steps:
+      - name: Print Runner Status
+        run: echo "✅ Runner is up and responding!"
+          

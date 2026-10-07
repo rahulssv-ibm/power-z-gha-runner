@@ -1,0 +1,42 @@
+name: Kind cluster test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  generate-logs:
+    name: Kind Test- ${{ matrix.os }} [${{ matrix.runner_owner }}]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-24.04-ppc64le-vm
+            runner_owner: "ppc64le-hosted"
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v5
+
+      - name: Installing Kind
+        run: |
+          export version="v0.22.0"
+          sudo apt install golang -y
+          sudo go install sigs.k8s.io/kind@$version # v0.22.0
+          sudo cp $(sudo go env GOPATH)/bin/kind /usr/local/bin/
+          kind version
+          
+      - name: Installing kubectl
+        run: |
+          export kubectl_version="v1.29.2"
+          sudo curl -sSLo kubectl "https://dl.k8s.io/$kubectl_version/bin/linux/ppc64le/kubectl" # v1.29.2
+          sudo chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/kubectl
+          kubectl version --client --output=yaml
+        
+      - name: Creating a Kind Cluster
+        run: |
+          kind create cluster --image quay.io/kviswana/kind-node:v1.30.2
+          
+      - name: List all Kind clusters
+        run: | 
+          kind get clusters

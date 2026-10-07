@@ -1,0 +1,49 @@
+name: uLimits
+
+on:
+  workflow_dispatch:
+
+jobs:
+  generate-logs:
+    name: uLimits - ${{ matrix.os }} [${{ matrix.runner_owner }}]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            runner_owner: "github-hosted"
+            runner_files: "/home/runner/runners/2.321.0/_diag/Runner_*"
+            worker_files: "/home/runner/runners/2.321.0/_diag/Worker_*"
+          # - os: ubuntu-24.04-s390x
+          #   runner_owner: "actions-runner-s390x"
+          #   runner_files: "/opt/runner/_diag/Runner_*"
+          #   worker_files: "/opt/runner/_diag/Worker_*"
+          - os: ubuntu-24.04-ppc64le
+            runner_owner: "actions-runner-ppc64le"
+            runner_files: "/opt/runner/_diag/Runner_*"
+            worker_files: "/opt/runner/_diag/Worker_*"
+          # - os: ubuntu-24.04-x86_64
+          #   runner_owner: "actions-runner-x86_64"
+          #   runner_files: "/opt/runner/_diag/Runner_*"
+          #   worker_files: "/opt/runner/_diag/Worker_*"
+          # - os: ubuntu-24.04-ppc64le-osu1
+          #   runner_owner: "actions-runner-ppc64le"
+          #   runner_files: "/opt/runner/_diag/Runner_*"
+          #   worker_files: "/opt/runner/_diag/Worker_*"
+          # - os: ubuntu-24.04-powervs-selfhosted
+          #   runner_owner: "actions-runner-ppc64le"
+          #   runner_files: "/opt/runner/_diag/Runner_*"
+          #   worker_files: "/opt/runner/_diag/Worker_*"
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4 
+      - name: check versions
+        run: |
+          which python
+          python --version
+          java --version
+      - name: Generate Logs 
+        run: |
+          chmod +x limits.sh
+          ./limits.sh
+          

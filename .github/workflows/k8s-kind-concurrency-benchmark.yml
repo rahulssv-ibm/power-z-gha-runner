@@ -1,0 +1,266 @@
+name: LXD VM - Kubernetes Concurrency Benchmark
+
+on:
+  workflow_dispatch:
+    inputs:
+      concurrency:
+        description: "Maximum simultaneous jobs"
+        required: true
+        type: choice
+        options: ["1", "2", "4", "6", "8", "10", "12", "14", "16", "18", "20", "21", "22", "23", "24", "25"]
+        default: "25"
+
+jobs:
+  kind-stress:
+    name: C${{ inputs.concurrency }} / Job #${{ matrix.test_id }}
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(inputs.concurrency) }}
+      matrix:
+        test_id: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+                  11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25]
+
+    runs-on: ubuntu-24.04-ppc64le-vm
+
+    steps:
+      - name: Record timing and host data
+        shell: bash
+        run: |
+          echo "START_EPOCH=$(date +%s)" >> "$GITHUB_ENV"
+          echo "START_ISO=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
+          hostname
+          uname -a
+          uname -m
+          nproc
+          free -h
+          df -h /
+
+      - name: Verify Docker
+        run: docker info
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Go for ppc64le
+        shell: bash
+        run: |
+          set -euo pipefail
+          ARCH="$(uname -m)"
+          OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
+          GO_VERSION="1.24.0"
+          TARBALL="go${GO_VERSION}.${OS}-${ARCH}.tar.gz"
+          GOROOT="$HOME/goroot"
+          mkdir -p "$GOROOT"
+          wget -q "https://go.dev/dl/${TARBALL}" -O "$TARBALL"
+          tar -xzf "$TARBALL" -C "$GOROOT" --strip-components=1
+          rm -f "$TARBALL"
+          echo "GOROOT=$GOROOT" >> "$GITHUB_ENV"
+          echo "GOPATH=$HOME/go" >> "$GITHUB_ENV"
+          echo "$GOROOT/bin" >> "$GITHUB_PATH"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Build kind
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone -b v0.33.0 https://github.com/kubernetes-sigs/kind
+          cd kind
+          wget -q             "https://raw.githubusercontent.com/ppc64le-cloud/kind-image/main/build-ppc64le.patch"             -O ../build-ppc64le.patch
+          git apply ../build-ppc64le.patch
+          make kind
+          mkdir -p "$HOME/.local/bin"
+          cp bin/kind "$HOME/.local/bin/kind"
+          chmod +x "$HOME/.local/bin/kind"
+
+      - name: Install kubectl
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.local/bin"
+          curl -fL             -o "$HOME/.local/bin/kubectl"             "https://dl.k8s.io/release/v1.29.3/bin/linux/ppc64le/kubectl"
+          chmod +x "$HOME/.local/bin/kubectl"
+          kubectl version --client
+
+      - name: Create Kind cluster
+        shell: bash
+        run: |
+          set -euo pipefail
+          CLUSTER="bench-${{ inputs.concurrency }}-${{ matrix.test_id }}"
+          kind create cluster             --name "$CLUSTER"             --image quay.io/powercloud/kind-node:v1.30.2             --wait 120s
+          echo "CLUSTER=$CLUSTER" >> "$GITHUB_ENV"
+
+      - name: Kubernetes workload
+        shell: bash
+        run: |
+          set -euo pipefail
+          kubectl create deployment nginx-test --image=nginx --replicas=5
+          kubectl wait --for=condition=available             --timeout=180s deployment/nginx-test
+          kubectl expose deployment nginx-test             --port=80 --target-port=80
+          kubectl get nodes -o wide
+          kubectl get pods -o wide
+
+      - name: Collect diagnostics
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          kubectl get nodes -o wide || true
+          kubectl get pods -A -o wide || true
+          kubectl get events -A --sort-by=.lastTimestamp || true
+          docker ps -a || true
+          docker system df || true
+          free -h || true
+          df -h || true
+
+      - name: Cleanup
+        if: always()
+        run: |
+          kind delete cluster --name "${CLUSTER:-unknown}" || true
+
+      - name: Capture result
+        if: always()
+        shell: bash
+        run: |
+          END_EPOCH="$(date +%s)"
+          END_ISO="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          DURATION="$((END_EPOCH - START_EPOCH))"
+
+          mkdir -p results
+          cat > "results/result-${{ matrix.test_id }}.csv" <<EOF
+          test_id,configured_concurrency,hostname,start_time_utc,end_time_utc,duration_sec,status
+          ${{ matrix.test_id }},${{ inputs.concurrency }},$(hostname),${START_ISO},${END_ISO},${DURATION},${{ job.status }}
+          EOF
+
+      - name: Upload result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: concurrency-${{ inputs.concurrency }}-result-${{ matrix.test_id }}
+          path: results/
+          retention-days: 14
+
+  aggregate:
+    name: Aggregate concurrency results
+    if: always()
+    needs: kind-stress
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download results
+        uses: actions/download-artifact@v5
+        with:
+          pattern: concurrency-${{ inputs.concurrency }}-result-*
+          path: raw
+          merge-multiple: false
+
+      - name: Generate summary
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p summary
+
+          HEADER="test_id,configured_concurrency,hostname,start_time_utc,end_time_utc,duration_sec,status"
+          echo "$HEADER" > summary/results.csv
+
+          # Merge CSV files while removing the header from EVERY file.
+          find raw -name '*.csv' -type f -print0 |
+            while IFS= read -r -d '' file; do
+              tail -n +2 "$file"
+            done |
+            sort -t, -k1,1n >> summary/results.csv
+
+          echo "=== Combined results ==="
+          cat summary/results.csv
+
+          python3 - <<'PY'
+          import csv
+          import statistics
+          from pathlib import Path
+
+          results_file = Path("summary/results.csv")
+
+          with results_file.open(newline="") as f:
+              rows = list(csv.DictReader(f))
+
+          # Ignore malformed/incomplete rows rather than failing the whole run.
+          valid_rows = []
+          for row in rows:
+              try:
+                  duration = float(row["duration_sec"])
+                  valid_rows.append((row, duration))
+              except (KeyError, TypeError, ValueError):
+                  print(f"WARNING: Ignoring malformed row: {row}")
+
+          durations = [duration for _, duration in valid_rows]
+
+          successful = sum(
+              row.get("status") == "success"
+              for row, _ in valid_rows
+          )
+
+          failed = len(valid_rows) - successful
+
+          def percentile(values, q):
+              if not values:
+                  return 0.0
+
+              values = sorted(values)
+
+              if len(values) == 1:
+                  return values[0]
+
+              position = (len(values) - 1) * q
+              lower = int(position)
+              upper = min(lower + 1, len(values) - 1)
+              fraction = position - lower
+
+              return (
+                  values[lower]
+                  + (values[upper] - values[lower]) * fraction
+              )
+
+          concurrency = (
+              valid_rows[0][0]["configured_concurrency"]
+              if valid_rows
+              else "unknown"
+          )
+
+          report = [
+              "# Kubernetes Kind Concurrency Benchmark",
+              "",
+              f"Configured concurrency: **{concurrency}**",
+              f"Jobs with valid results: **{len(valid_rows)}**",
+              f"Successful jobs: **{successful}**",
+              f"Failed jobs: **{failed}**",
+              "",
+              "| Metric | Value |",
+              "|---|---:|",
+          ]
+
+          if durations:
+              report.extend([
+                  f"| Min duration | {min(durations):.1f}s |",
+                  f"| Average duration | {statistics.mean(durations):.1f}s |",
+                  f"| P50 duration | {statistics.median(durations):.1f}s |",
+                  f"| P95 duration | {percentile(durations, 0.95):.1f}s |",
+                  f"| Max duration | {max(durations):.1f}s |",
+              ])
+          else:
+              report.append("| Duration | No valid results |")
+
+          Path("summary/summary.md").write_text(
+              "\n".join(report) + "\n"
+          )
+
+          print("")
+          print("=== Summary ===")
+          print(Path("summary/summary.md").read_text())
+          PY
+
+      - name: Upload aggregate
+        uses: actions/upload-artifact@v4
+        with:
+          name: concurrency-${{ inputs.concurrency }}-summary
+          path: summary/
+          retention-days: 30

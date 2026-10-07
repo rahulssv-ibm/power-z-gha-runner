@@ -1,0 +1,23 @@
+name: Network Tests
+
+# Only run on branches (e.g. not tags)
+on:
+  workflow_dispatch:
+
+jobs:
+  fio:
+    name: Tests
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, ubuntu-22.04-powervs-selfhosted, ubuntu-22.04-ppc64le]
+
+    steps:
+      - name: Download Tests from 212.183.159.230
+        run: |
+          time curl -o file_2.zip http://212.183.159.230/1GB.zip        
+      - name: Download Tests from speedtest.tele2.net
+        run: |
+          time curl -o file_1.zip http://speedtest.tele2.net/1GB.zip
+
+

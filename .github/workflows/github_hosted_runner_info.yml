@@ -1,0 +1,130 @@
+name: Runner Info
+
+on:
+  pull_request: 
+  workflow_dispatch:
+
+jobs:
+  generate-logs:
+    name: Runner Info - ${{ matrix.os }} [${{ matrix.runner_owner }}]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            runner_owner: "github-hosted"
+          - os: ubuntu-24.04-x86_64
+            runner_owner: "ppc64le-hosted"
+          # - os: ubuntu-24.04-ppc64le
+          #   runner_owner: "ppc64le-hosted"
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Check git  
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.eol lf
+          git config --global advice.detachedHead 0
+          git config --global init.defaultBranch garbage
+          
+      - name: Check env
+        run: |
+          env
+
+      - name: Check docker config
+        run: |
+          echo "----------------------------------------------------"
+          echo "Verifying Docker Configuration (MTU & Ulimits)"
+          echo "----------------------------------------------------"
+          # identify the default network adapter on the machine, the next command like check the MTU configuration on this adapter
+          read -r INTERFACE < <(ip route | awk '$1=="default"{print $5; exit}')
+          
+          # if your network uses jumbo frames (MTU 9000), or an MTU smaller than 1500 (as found on Google Cloud VMs), use a matching MTU on lxdbr0 (which is created by lxd init --auto)
+          ip link show $INTERFACE | awk '/mtu/ {print $5}'
+
+          cat /etc/resolv.conf 
+          
+          # 1. Verify MTU configuration on the default bridge
+          # We look for the option in the network inspect output
+          current_mtu=$(docker network inspect bridge --format '{{ index .Options "com.docker.network.driver.mtu" }}')
+          
+          if [[ "$current_mtu" == "1500" ]]; then
+              echo "[PASS] Default Bridge MTU is 1460"
+          else
+              # Note: If it is empty, it means it fell back to the default (usually 1500)
+              echo "[WARN] Default Bridge MTU is '${current_mtu:-1500}' (Expected: 1460)" 
+          fi
+          
+          # 2. Verify Ulimits (Fix for rlimit type 7 error)
+          # We attempt to run a container. If the rlimit fix failed, this command will crash with the 'OCI runtime' error.
+          # We use 'busybox' or 'alpine' if available. Since your script pulls images earlier, 
+          # we try to use a standard small image. If not present, we try to pull alpine.
+          
+          TEST_IMAGE="alpine:latest"
+          
+          # Check if we need to pull alpine explicitly or if we can rely on internet
+          if ! docker image inspect $TEST_IMAGE > /dev/null 2>&1; then
+              echo "Pulling test image ($TEST_IMAGE) for verification..."
+              docker pull -q $TEST_IMAGE > /dev/null 2>&1
+          fi
+          
+          if docker image inspect $TEST_IMAGE > /dev/null 2>&1; then
+              # Run a container and ask it what its file limit is
+              ulimit_check=$(docker run --rm $TEST_IMAGE sh -c "ulimit -n")
+              
+              if [[ "$ulimit_check" == "65535" ]]; then
+                  echo "[PASS] Container Ulimit (nofile) is 65535"
+              else
+                  echo "[WARN] Container Ulimit is $ulimit_check (Expected: 65535)"
+              fi
+          else
+              echo "[SKIP] Could not find or pull '$TEST_IMAGE' to verify ulimits."
+          fi
+        
+      - name: Generate Logs
+        run: |
+          df -h
+          lsblk
+          free -h
+          lscpu
+          
+      - name: Print HOME var
+        run: | 
+          echo $HOME
+
+      - name: Print Environment
+        run: | 
+          cat /etc/environment
+          
+      - name: Print Info 
+        run: | 
+          id runner
+          getent group
+          whoami                    
+          id 
+          getent passwd "$(whoami)" 
+          groups "$(whoami)" 
+          getent group | grep "$(whoami)"
+          sudo -l        
+
+      # - name: Check setup info 
+      #   run: | 
+      #     cat /home/runner/actions-runner/cached/.setup_info
+          
+      - name: Check docker 
+        run: | 
+          docker ps
+
+      - name: Check dotnet PATH 
+        run: | 
+          echo $DOTNET_ROOT
+
+      # - name: Check packages
+      #   run: | 
+      #     rustup --version
+      #     ninja --version

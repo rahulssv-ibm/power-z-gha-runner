@@ -1,0 +1,33 @@
+name: Connection Lost Issue
+
+on:
+  workflow_dispatch:
+
+jobs:
+  generate-logs:
+    name: Build Logs - ${{ matrix.os }} [${{ matrix.runner_owner }}]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          # - os: ubuntu-24.04-ppc64le
+          #   arch: "ppc64le"
+          #   runner_owner: "actions-runner-ppc64le"
+          #   runner_files: "/opt/runner/_diag/Runner_*"
+          #   worker_files: "/opt/runner/_diag/Worker_*"
+          - os: ubuntu-24.04-s390x
+            arch: "s390x"
+            runner_owner: "actions-runner-ppc64le"
+            runner_files: "/opt/runner/_diag/Runner_*"
+            worker_files: "/opt/runner/_diag/Worker_*"
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v5
+        
+      - name: Build, test and push
+        id: build_test_push
+        uses: ./.github/actions/build-test-push
+        with:
+          version: pr-1
+          platform: linux/${{ matrix.arch }} 
+          alternate_repository: snapshot
