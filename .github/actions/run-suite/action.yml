@@ -1,0 +1,48 @@
+name: Run test suite
+description: Run one test domain for one profile and upload the results artifact.
+inputs:
+  domain:
+    description: Test domain (capability|security|stress|probe)
+    required: true
+  profile:
+    description: Runner profile (container|vm)
+    required: true
+  arch:
+    description: Architecture label (ppc64le|s390x)
+    required: true
+  os:
+    description: Ubuntu version (22.04|24.04)
+    required: true
+runs:
+  using: composite
+  steps:
+    - uses: actions/checkout@v4
+    - name: Setup kind
+      if: inputs.domain == 'capability' || inputs.domain == 'stress'
+      uses: ./.github/actions/setup-kind-ppc64le
+    - name: Run ${{ inputs.domain }}
+      id: run
+      shell: bash
+      env:
+        PROFILE: ${{ inputs.profile }}
+        ARCH: ${{ inputs.arch }}
+        OS: ${{ inputs.os }}
+      run: |
+        set -uo pipefail
+        export RESULT_DIR="$RUNNER_TEMP/results"
+        mkdir -p "$RESULT_DIR"
+        bash tests/lib/runner.sh "${{ inputs.domain }}"; rc=$?
+        {
+          echo "## ${{ inputs.domain }} / ${{ inputs.profile }} / ${{ inputs.arch }} / ${{ inputs.os }}"
+          echo '```'
+          sed 's/\t/ | /g' "$RESULT_DIR/verdict-${{ inputs.domain }}.tsv" 2>/dev/null || echo "(no verdict file)"
+          echo '```'
+        } >> "$GITHUB_STEP_SUMMARY"
+        exit $rc
+    - name: Upload results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: result-${{ inputs.domain }}-${{ inputs.profile }}-${{ inputs.arch }}-${{ inputs.os }}
+        path: ${{ runner.temp }}/results
+        retention-days: 14
