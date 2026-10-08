@@ -48,7 +48,7 @@ jobs:
           #   worker_files: "/opt/runner-cache/_diag/Worker_*"
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         
       - name: Generate Logs
         run: |
