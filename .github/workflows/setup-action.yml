@@ -32,7 +32,7 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4  # Fixed: v5 does not exist yet
+        uses: actions/checkout@v7  # Fixed: v5 does not exist yet
 
       - name: Setup Node
         uses: actions/setup-node@v6

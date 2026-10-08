@@ -50,7 +50,7 @@ jobs:
       matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
     runs-on: ${{ matrix.label }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/run-suite
         with:
           domain: ${{ inputs.domain }}

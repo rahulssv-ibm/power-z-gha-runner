@@ -73,7 +73,7 @@ jobs:
             v-capability, v-security, v-stress, v-probe]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/aggregate-report
       # A suite job that crashed before writing verdicts (setup failure, runner
       # lost, timeout) leaves no FAIL row, so verdicts alone would read green.
