@@ -3,3 +3,4 @@ good	pass.sh	container,vm	PASS	PASS	-
 bad	fail.sh	container,vm	PASS	PASS	-
 onlyvm	pass.sh	container,vm	-	PASS	-
 capab	cap.sh	container,vm	XFAIL	PASS	9
+notapp	na.sh	container,vm	XFAIL	PASS	-

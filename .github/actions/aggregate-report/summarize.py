@@ -13,6 +13,7 @@ import sys
 from collections import Counter, defaultdict
 
 DUR = re.compile(r"dur=(\d+)s")
+SANDBOX = re.compile(r"virt=(\S+) backend=(\S+)")
 
 
 def load(paths):
@@ -67,6 +68,27 @@ def report(rows):
     return "\n".join(lines) + "\n", total["FAIL"]
 
 
+def sandboxes(paths):
+    """Which sandbox (virt type, LXD or Incus) served each probe job."""
+    seen = Counter()
+    for p in paths:
+        with open(p) as f:
+            for line in f:
+                parts = line.rstrip("\n").split("\t")
+                if len(parts) == 8 and parts[0] == "RESULT" and parts[1] == "host-info":
+                    m = SANDBOX.search(parts[7])
+                    if m:
+                        seen[(parts[3], parts[4], parts[5], m.group(1), m.group(2))] += 1
+    if not seen:
+        return ""
+    lines = ["", "## Sandboxes that ran the probe", "",
+             "| profile | arch | os | virt | backend | jobs |",
+             "|---|---|---|---|---|---:|"]
+    for key, n in sorted(seen.items()):
+        lines.append(f"| {' | '.join(key)} | {n} |")
+    return "\n".join(lines) + "\n"
+
+
 def exit_code(rows, nfail):
     # No rows means no suite reported anything: never a pass.
     return 1 if (not rows or nfail) else 0
@@ -85,6 +107,16 @@ def selftest():
     assert exit_code(rows, nfail) == 1
     assert exit_code([], 0) == 1                 # nothing ran -> gate fails
     assert exit_code(rows[1:], 0) == 0
+    import tempfile
+    with tempfile.NamedTemporaryFile("w", suffix=".tsv", delete=False) as f:
+        f.write("RESULT\thost-info\tprobe\tvm\tppc64le\t24.04\tPASS\tvirt=kvm backend=incus\n"
+                "RESULT\thost-info\tprobe\tcontainer\ts390x\t22.04\tPASS\tvirt=lxc backend=lxd\n"
+                "RESULT\tenv\tprobe\tvm\tppc64le\t24.04\tPASS\tcollected\n")
+    sb = sandboxes([f.name])
+    os.unlink(f.name)
+    assert "| vm | ppc64le | 24.04 | kvm | incus | 1 |" in sb, sb
+    assert "| container | s390x | 22.04 | lxc | lxd | 1 |" in sb, sb
+    assert sandboxes([]) == ""
     print("summarize selftest: OK")
     return 0
 
@@ -97,6 +129,7 @@ def main():
         md, nfail = report(rows)
     else:
         md, nfail = "# Test suite results\n\n**No results found** — no suite job produced verdicts.\n", 0
+    md += sandboxes(glob.glob("raw/**/detail-probe.tsv", recursive=True))
     with open("summary.csv", "w", newline="") as f:
         w = csv.writer(f)
         w.writerow(["domain", "id", "profile", "arch", "os", "status", "dur_s", "reason"])

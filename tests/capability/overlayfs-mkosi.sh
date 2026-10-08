@@ -4,6 +4,7 @@ dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../lib" && pwd)"
 . "$dir/assert.sh"
 # Issue #7: OverlayFS mount on Btrfs via mkosi sandbox.
 work="$(mktemp -d)"; cd "$work" || exit 1
+trap 'cd /; rm -rf "$work"' EXIT
 # mkosi needs unprivileged userns; relax the AppArmor restriction for the test
 # only, then restore it so a reused runner is not left weakened.
 knob=/proc/sys/kernel/apparmor_restrict_unprivileged_userns
