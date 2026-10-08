@@ -27,6 +27,12 @@ tests/
 Workflow YAML must stay flat in `.github/workflows/` (GitHub rule); all test
 logic lives in `tests/` and runs without GitHub Actions.
 
+## Promoting a platform change
+
+Validate staging with this suite before anything reaches production. The
+procedure, promotion gate, and sign-off record are in
+[docs/staging-validation.md](docs/staging-validation.md).
+
 ## Run from GitHub
 
 Actions tab → **run-all** → pick:
@@ -78,6 +84,9 @@ Verdict vocabulary: `PASS FAIL XFAIL WARN INFO SKIP`. Only `FAIL` fails the gate
 ## Add a test
 
 1. Drop `tests/<domain>/<id>.sh` (source `assert.sh`, end with `assert_finish`).
+   If the test cannot apply on some runner (wrong arch, tool missing), call
+   `skip_test "<id>" "<reason>"` so it reports `SKIP` rather than a false
+   `PASS` or `WARN`. Clean up any `mktemp` dirs with an `EXIT` trap.
 2. Add one line to `tests/<domain>/manifest.tsv`.
 
 No workflow edits. New arch/os = one matrix line in the suite workflow.

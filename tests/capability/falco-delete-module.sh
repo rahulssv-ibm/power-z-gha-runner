@@ -6,6 +6,7 @@ dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../lib" && pwd)"
 # blocked by seccomp (ENOSYS=38).
 sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends build-essential >/dev/null 2>&1 || true
 work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
 cat > "$work/t.c" <<'EOF'
 #include <fcntl.h>
 #include <sys/syscall.h>

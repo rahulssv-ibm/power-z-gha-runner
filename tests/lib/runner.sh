@@ -30,12 +30,16 @@ run_domain() {
       DETAIL_FILE="$RESULT_DIR/detail-$domain.tsv" \
       bash "$base/$domain/$script" > "$RESULT_DIR/logs/$id.log" 2>&1
     c=$?
-    case "$expected" in
-      INFO)  v=INFO ;;
-      PASS)  if [ "$c" -eq 0 ]; then v=PASS; else v=FAIL; gate=1; fi ;;
-      XFAIL) if [ "$c" -ne 0 ]; then v=XFAIL; else v=WARN; fi ;;
-      *)     v=FAIL; gate=1 ;;
-    esac
+    if [ "$c" -eq 77 ]; then
+      v=SKIP   # script declared itself not applicable here (skip_test)
+    else
+      case "$expected" in
+        INFO)  v=INFO ;;
+        PASS)  if [ "$c" -eq 0 ]; then v=PASS; else v=FAIL; gate=1; fi ;;
+        XFAIL) if [ "$c" -ne 0 ]; then v=XFAIL; else v=WARN; fi ;;
+        *)     v=FAIL; gate=1 ;;
+      esac
+    fi
     printf 'RESULT\t%s\t%s\t%s\t%s\t%s\t%s\texit=%s dur=%ss\n' \
       "$id" "$domain" "$PROFILE" "${ARCH:-?}" "${OS:-?}" "$v" "$c" "$((SECONDS - t0))" >> "$verdict"
   done < "$manifest"
@@ -45,6 +49,7 @@ run_domain() {
 if [ "${1:-}" = "--selftest" ]; then
   set -u
   tmp="$(mktemp -d)"
+  trap 'rm -rf "$tmp"' EXIT
   # container run: good=PASS, bad=FAIL, onlyvm=SKIP, capab=XFAIL(expected fail) -> gate FAIL (from bad)
   RESULT_DIR="$tmp/c" PROFILE="container" ARCH="x" OS="y" \
     bash "${BASH_SOURCE[0]}" _fixtures; rc=$?
@@ -53,16 +58,21 @@ if [ "${1:-}" = "--selftest" ]; then
   grep -q $'\tbad\t.*\tFAIL\t'    "$v" || { echo "bad!=FAIL"; exit 1; }
   grep -q $'\tonlyvm\t.*\tSKIP\t' "$v" || { echo "onlyvm!=SKIP"; exit 1; }
   grep -q $'\tcapab\t.*\tXFAIL\t' "$v" || { echo "capab!=XFAIL"; exit 1; }
+  grep -q $'\tnotapp\t.*\tSKIP\t' "$v" || { echo "skip_test on container!=SKIP (would read WARN)"; exit 1; }
   [ "$rc" -ne 0 ] || { echo "gate should fail (bad present)"; exit 1; }
   # vm run: capab expected PASS but script fails -> FAIL
   RESULT_DIR="$tmp/v" PROFILE="vm" ARCH="x" OS="y" \
     bash "${BASH_SOURCE[0]}" _fixtures; rc2=$?
   grep -q $'\tcapab\t.*\tvm.*\tFAIL\t' "$tmp/v/verdict-_fixtures.tsv" || { echo "capab vm!=FAIL"; exit 1; }
+  grep -q $'\tnotapp\t.*\tSKIP\t' "$tmp/v/verdict-_fixtures.tsv" || { echo "skip_test on vm!=SKIP (would read PASS)"; exit 1; }
   [ "$rc2" -ne 0 ] || { echo "vm gate should fail"; exit 1; }
   grep -q $'\tgood\t.* dur=[0-9]*s$' "$v" || { echo "duration missing"; exit 1; }
   # a domain with no manifest must fail loudly, never pass with zero tests
   RESULT_DIR="$tmp/m" PROFILE="container" bash "${BASH_SOURCE[0]}" no-such-domain 2>/dev/null; rc3=$?
   [ "$rc3" -eq 2 ] || { echo "missing manifest should exit 2, got $rc3"; exit 1; }
+  # a script run standalone (no DOMAIN) names its detail file after its folder
+  RESULT_DIR="$tmp/d" bash "$(dirname "${BASH_SOURCE[0]}")/../_fixtures/pass.sh"
+  [ -f "$tmp/d/detail-_fixtures.tsv" ] || { echo "standalone run wrote $(ls "$tmp/d"), want detail-_fixtures.tsv"; exit 1; }
   echo "runner.sh selftest: OK"
   exit 0
 fi

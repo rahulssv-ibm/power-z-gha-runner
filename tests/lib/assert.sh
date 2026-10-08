@@ -7,6 +7,12 @@
 # Scripts speak FACTUALLY (ok = operation succeeded / boundary held).
 # The runner.sh engine reconciles that against the manifest's expectation.
 
+# Run standalone, a script has no DOMAIN; take it from the script's folder
+# (tests/security/x.sh -> security) so its details land in detail-security.tsv.
+if [ -z "${DOMAIN:-}" ] && [ -n "${BASH_SOURCE[1]:-}" ]; then
+  DOMAIN="$(basename "$(dirname "${BASH_SOURCE[1]}")")"
+fi
+
 _detail_file() { echo "${DETAIL_FILE:-${RESULT_DIR:-/tmp/results}/detail-${DOMAIN:-unknown}.tsv}"; }
 
 _emit() { # status id reason
@@ -27,6 +33,9 @@ ok()    { _emit PASS  "$1" "${2:-}"; }
 fail()  { _emit FAIL  "$1" "${2:-}"; _HARD_FAIL=1; }
 xfail() { _emit XFAIL "$1" "${2:-}"; }
 skip()  { _emit SKIP  "$1" "${2:-}"; }
+# Whole test does not apply on this runner (wrong arch, tool absent): exit 77,
+# the automake SKIP code, which runner.sh reports as SKIP whatever is expected.
+skip_test() { skip "$1" "${2:-}"; exit 77; }
 
 # cmd must succeed (exit 0) -> ok, else fail.
 expect_ok()      { local id="$1"; shift; if "$@" >/dev/null 2>&1; then ok "$id" "ran: $*"; else fail "$id" "failed (wanted success): $*"; fi; }
@@ -39,6 +48,7 @@ assert_finish() { return "$_HARD_FAIL"; }
 if [ "${1:-}" = "--selftest" ]; then
   set -u
   tmp="$(mktemp -d)"
+  trap 'rm -rf "$tmp"' EXIT
   export RESULT_DIR="$tmp" DOMAIN="self" PROFILE="p" ARCH="a" OS="o"
   export DETAIL_FILE="$tmp/d.tsv"
   ok   "t-ok"   "r1"
