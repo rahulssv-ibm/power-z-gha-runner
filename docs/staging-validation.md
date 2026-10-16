@@ -136,6 +136,7 @@ the baseline for the next promotion.
 | `WARN`  | Succeeded where failure was expected | Needs an explanation |
 | `INFO`  | Probe output, never gates | No |
 | `SKIP`  | Not applicable on this runner | No |
+| `PARITY` | Failed, but GitHub-hosted runners fail the same checks | No |
 
 **Probe.** Below the results table, the `aggregate` summary has a
 "Sandboxes that ran the probe" table: profile, arch, os, virt type, and
@@ -169,8 +170,10 @@ results table is incomplete.
 
 ## Known findings
 
-These can fail on today's platform independently of the change you are
-promoting. A known finding that is also in the baseline does not block on
+The bar is parity with GitHub-hosted runners, which every run measures
+(profile `hosted`). A finding that GitHub-hosted shares reads `PARITY` and does
+not gate; one that only our runners have stays `FAIL`. These can fail on
+today's platform independently of the change you are promoting. A known finding that is also in the baseline does not block on
 its own, but it needs a tracking issue. Any of these appearing **new** in
 staging blocks.
 
@@ -191,7 +194,6 @@ staging blocks.
 - Network isolation between sibling runners on a shared bridge (whether one
   tenant's container can reach another's). Check it manually for changes to
   bridges, ACLs, or network isolation settings.
-- A comparison against GitHub-hosted x86/arm runners.
 
 ## Sign-off record
 

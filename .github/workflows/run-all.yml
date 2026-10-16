@@ -36,42 +36,58 @@ permissions:
 jobs:
   c-capability:
     if: contains(fromJSON('["all","container","capability"]'), inputs.suite)
-    uses: ./.github/workflows/_suite-container.yml
-    with: { domain: capability, arch: "${{ inputs.arch }}", os: "${{ inputs.os }}", instances: "${{ inputs.instances }}", max_parallel: "${{ inputs.max_parallel }}" }
+    uses: ./.github/workflows/_suite.yml
+    with: { domain: capability, profile: container, arch: "${{ inputs.arch }}", os: "${{ inputs.os }}", instances: "${{ inputs.instances }}", max_parallel: "${{ inputs.max_parallel }}" }
   c-security:
     if: contains(fromJSON('["all","container","security"]'), inputs.suite)
-    uses: ./.github/workflows/_suite-container.yml
-    with: { domain: security, arch: "${{ inputs.arch }}", os: "${{ inputs.os }}", instances: "${{ inputs.instances }}", max_parallel: "${{ inputs.max_parallel }}" }
+    uses: ./.github/workflows/_suite.yml
+    with: { domain: security, profile: container, arch: "${{ inputs.arch }}", os: "${{ inputs.os }}", instances: "${{ inputs.instances }}", max_parallel: "${{ inputs.max_parallel }}" }
   c-stress:
     if: contains(fromJSON('["all","container","stress"]'), inputs.suite)
-    uses: ./.github/workflows/_suite-container.yml
-    with: { domain: stress, arch: "${{ inputs.arch }}", os: "${{ inputs.os }}", instances: "${{ inputs.instances }}", max_parallel: "${{ inputs.max_parallel }}" }
+    uses: ./.github/workflows/_suite.yml
+    with: { domain: stress, profile: container, arch: "${{ inputs.arch }}", os: "${{ inputs.os }}", instances: "${{ inputs.instances }}", max_parallel: "${{ inputs.max_parallel }}" }
   c-probe:
     if: contains(fromJSON('["all","container","probe"]'), inputs.suite)
-    uses: ./.github/workflows/_suite-container.yml
-    with: { domain: probe, arch: "${{ inputs.arch }}", os: "${{ inputs.os }}", instances: "${{ inputs.instances }}", max_parallel: "${{ inputs.max_parallel }}" }
+    uses: ./.github/workflows/_suite.yml
+    with: { domain: probe, profile: container, arch: "${{ inputs.arch }}", os: "${{ inputs.os }}", instances: "${{ inputs.instances }}", max_parallel: "${{ inputs.max_parallel }}" }
 
   v-capability:
     if: contains(fromJSON('["all","vm","capability"]'), inputs.suite)
-    uses: ./.github/workflows/_suite-vm.yml
-    with: { domain: capability, arch: "${{ inputs.arch }}", os: "${{ inputs.os }}", instances: "${{ inputs.instances }}", max_parallel: "${{ inputs.max_parallel }}" }
+    uses: ./.github/workflows/_suite.yml
+    with: { domain: capability, profile: vm, arch: "${{ inputs.arch }}", os: "${{ inputs.os }}", instances: "${{ inputs.instances }}", max_parallel: "${{ inputs.max_parallel }}" }
   v-security:
     if: contains(fromJSON('["all","vm","security"]'), inputs.suite)
-    uses: ./.github/workflows/_suite-vm.yml
-    with: { domain: security, arch: "${{ inputs.arch }}", os: "${{ inputs.os }}", instances: "${{ inputs.instances }}", max_parallel: "${{ inputs.max_parallel }}" }
+    uses: ./.github/workflows/_suite.yml
+    with: { domain: security, profile: vm, arch: "${{ inputs.arch }}", os: "${{ inputs.os }}", instances: "${{ inputs.instances }}", max_parallel: "${{ inputs.max_parallel }}" }
   v-stress:
     if: contains(fromJSON('["all","vm","stress"]'), inputs.suite)
-    uses: ./.github/workflows/_suite-vm.yml
-    with: { domain: stress, arch: "${{ inputs.arch }}", os: "${{ inputs.os }}", instances: "${{ inputs.instances }}", max_parallel: "${{ inputs.max_parallel }}" }
+    uses: ./.github/workflows/_suite.yml
+    with: { domain: stress, profile: vm, arch: "${{ inputs.arch }}", os: "${{ inputs.os }}", instances: "${{ inputs.instances }}", max_parallel: "${{ inputs.max_parallel }}" }
   v-probe:
     if: contains(fromJSON('["all","vm","probe"]'), inputs.suite)
-    uses: ./.github/workflows/_suite-vm.yml
-    with: { domain: probe, arch: "${{ inputs.arch }}", os: "${{ inputs.os }}", instances: "${{ inputs.instances }}", max_parallel: "${{ inputs.max_parallel }}" }
+    uses: ./.github/workflows/_suite.yml
+    with: { domain: probe, profile: vm, arch: "${{ inputs.arch }}", os: "${{ inputs.os }}", instances: "${{ inputs.instances }}", max_parallel: "${{ inputs.max_parallel }}" }
+
+  # GitHub-hosted reference: a FAIL that also fails on every hosted runner is
+  # reported PARITY and does not gate (we expose no more than GitHub does).
+  h-capability:
+    if: contains(fromJSON('["all","container","vm","capability"]'), inputs.suite)
+    uses: ./.github/workflows/_suite.yml
+    with: { domain: capability, profile: hosted, arch: "${{ inputs.arch }}", os: "${{ inputs.os }}", instances: "${{ inputs.instances }}", max_parallel: "${{ inputs.max_parallel }}" }
+  h-security:
+    if: contains(fromJSON('["all","container","vm","security"]'), inputs.suite)
+    uses: ./.github/workflows/_suite.yml
+    with: { domain: security, profile: hosted, arch: "${{ inputs.arch }}", os: "${{ inputs.os }}", instances: "${{ inputs.instances }}", max_parallel: "${{ inputs.max_parallel }}" }
+  h-probe:
+    if: contains(fromJSON('["all","container","vm","probe"]'), inputs.suite)
+    uses: ./.github/workflows/_suite.yml
+    with: { domain: probe, profile: hosted, arch: "${{ inputs.arch }}", os: "${{ inputs.os }}", instances: "${{ inputs.instances }}", max_parallel: "${{ inputs.max_parallel }}" }
 
   aggregate:
     if: always()
     needs: [c-capability, c-security, c-stress, c-probe,
-            v-capability, v-security, v-stress, v-probe]
+            v-capability, v-security, v-stress, v-probe,
+            h-capability, h-security, h-probe]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

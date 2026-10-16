@@ -4,8 +4,9 @@ dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../lib" && pwd)"
 . "$dir/assert.sh"
 # Resource/network abuse boundary. PASS = abuse channel is bounded/blocked.
 
-# Cloud instance-metadata endpoint must not be reachable from a job.
-expect_blocked "imds" curl -sf --max-time 5 http://169.254.169.254/latest/meta-data/
+# Cloud instance-metadata endpoint must not be reachable from a job. Any HTTP
+# answer means reachable (no -f: Azure answers this AWS path with an error).
+expect_blocked "imds" curl -s -o /dev/null --max-time 5 http://169.254.169.254/latest/meta-data/
 
 # Known crypto-mining pool endpoints should be blocked by egress policy.
 # Live pools only: a dead pool's NXDOMAIN would read as "blocked".

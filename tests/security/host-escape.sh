@@ -15,6 +15,8 @@ if command -v systemd-detect-virt >/dev/null; then
       lxc) ok "sandbox-type" "container: $t" ;;
       *)   fail "sandbox-type" "expected an LXD/Incus container, detected: $t" ;;
     esac
+  elif [ "${PROFILE:-}" = hosted ]; then
+    skip "sandbox-type" "GitHub-hosted reference, not our sandbox"
   else
     t="$(systemd-detect-virt --vm || true)"
     case "$t" in
