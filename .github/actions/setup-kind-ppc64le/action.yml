@@ -7,6 +7,12 @@ inputs:
   kind-version:
     description: kind git tag to build
     default: "v0.32.0"
+  patch-ref:
+    description: >
+      ppc64le-cloud/kind-image commit whose build-ppc64le.patch matches
+      kind-version (its KIND_VERSION file). Move both together: the patch on
+      main tracks the newest kind and stops applying to older tags.
+    default: "6a25e1f12e21186bbe8d94873360fa704c948249"   # KIND_VERSION v0.32.0
   kubectl-version:
     description: kubectl release to install
     default: "v1.29.3"
@@ -32,7 +38,7 @@ runs:
         set -euo pipefail
         git clone -b "${{ inputs.kind-version }}" https://github.com/kubernetes-sigs/kind
         cd kind
-        wget -q "https://raw.githubusercontent.com/ppc64le-cloud/kind-image/main/build-ppc64le.patch" -O ../p.patch
+        wget -q "https://raw.githubusercontent.com/ppc64le-cloud/kind-image/${{ inputs.patch-ref }}/build-ppc64le.patch" -O ../p.patch
         git apply ../p.patch
         "$HOME/goroot/bin/go" version
         make kind

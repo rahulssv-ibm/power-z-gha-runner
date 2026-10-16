@@ -93,8 +93,12 @@ jobs:
       - uses: ./.github/actions/aggregate-report
       # A suite job that crashed before writing verdicts (setup failure, runner
       # lost, timeout) leaves no FAIL row, so verdicts alone would read green.
+      # always(): otherwise a FAIL from the gate step above skips this check.
       - name: Fail if any suite job failed or was cancelled
-        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        if: always() && (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled'))
+        env:
+          NEEDS: ${{ toJSON(needs) }}
         run: |
-          echo "::error::A suite job failed or was cancelled; the matrix above may be incomplete. Check the failed job logs."
+          bad=$(jq -r 'to_entries[] | select(.value.result == "failure" or .value.result == "cancelled") | "\(.key) \(.value.result)"' <<<"$NEEDS" | paste -sd, -)
+          echo "::error title=Suite job crashed::$bad. Their results are missing from the matrix above; check those jobs' logs (setup, lost runner, timeout, cancel)."
           exit 1
