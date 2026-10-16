@@ -43,7 +43,9 @@ Actions tab → **run-all** → pick:
 - `instances`: copies of every job, to load the service (default `1`)
 - `max_parallel`: simultaneous jobs per suite (default `25`)
 
-One click (`all`) runs every domain on both profiles. The aggregate job prints
+One click runs every domain on the container profile (the default, since
+staging has no VM runners yet: `vm`/`all` jobs would sit queued until GitHub
+drops them after 24h). `all` runs both profiles. The aggregate job prints
 a per `arch × os × profile × domain` matrix (status counts plus p50/p95 script
 duration) and fails if any check is `FAIL`, if any suite job crashed or was
 cancelled, or if no results arrived at all.
