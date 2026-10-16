@@ -21,7 +21,7 @@ tests/
   aggregate-report   merge results into a pass/fail matrix, gate on FAIL
 .github/workflows/
   run-all.yml        one-click/select entry point (workflow_dispatch)
-  _suite-container.yml / _suite-vm.yml  reusable per-profile runners
+  _suite.yml         reusable per-profile runner (container | vm | hosted)
 ```
 
 Workflow YAML must stay flat in `.github/workflows/` (GitHub rule); all test
@@ -49,6 +49,12 @@ drops them after 24h). `all` runs both profiles. The aggregate job prints
 a per `arch × os × profile × domain` matrix (status counts plus p50/p95 script
 duration) and fails if any check is `FAIL`, if any suite job crashed or was
 cancelled, or if no results arrived at all.
+
+**Parity with GitHub-hosted.** Every run also executes capability, security,
+and probe on GitHub-hosted `ubuntu-22.04`/`24.04` (x86_64 and arm) as profile
+`hosted`. Those rows are the reference and never gate. One of our `FAIL`s
+becomes `PARITY` (not gating) when every check it failed also failed on every
+hosted runner that ran the test: we expose nothing GitHub-hosted does not.
 
 Service load test (replaces the old 200-job kind stress): `suite=stress`,
 `arch=ppc64le`, `os=24.04`, `instances=200`, `max_parallel=25`. GitHub caps a
@@ -81,7 +87,7 @@ id   script   profiles   expected_container   expected_vm   issue
   failing is healthy, succeeding is a WARN), `INFO` (never gates), `-` (n/a → SKIP).
 - Security rows are always `PASS`: a breach makes the script exit non-zero → `FAIL`.
 
-Verdict vocabulary: `PASS FAIL XFAIL WARN INFO SKIP`. Only `FAIL` fails the gate.
+Verdict vocabulary: `PASS FAIL XFAIL WARN INFO SKIP PARITY`. Only `FAIL` fails the gate.
 
 ## Add a test
 

@@ -39,6 +39,9 @@ runs:
         export RESULT_DIR="$RUNNER_TEMP/results"
         mkdir -p "$RESULT_DIR"
         bash tests/lib/runner.sh "$DOMAIN"; rc=$?
+        # rc 1 = FAIL rows: the aggregate gates those (after the GitHub-hosted
+        # parity check). Any other non-zero rc is a crash and fails the job.
+        [ "$rc" -eq 1 ] && rc=0
         {
           echo "## $DOMAIN / $PROFILE / $ARCH / $OS / #$INSTANCE"
           echo '```'

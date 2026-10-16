@@ -4,6 +4,10 @@
 Rows are grouped by (domain, id, profile, arch, os) so a load run with many
 instances stays readable: each group shows its status counts and p50/p95
 script duration. Exits 1 on any FAIL, or when no results arrived at all.
+
+GitHub-hosted runners (profile "hosted") are the reference, never gated: our
+FAIL becomes PARITY when every check it failed also failed on every hosted
+runner that ran the test, i.e. we expose nothing GitHub-hosted does not.
 """
 import csv
 import glob
@@ -13,6 +17,7 @@ import sys
 from collections import Counter, defaultdict
 
 DUR = re.compile(r"dur=(\d+)s")
+FAILS = re.compile(r"fails=(\S+)")
 SANDBOX = re.compile(r"virt=(\S+) backend=(\S+)")
 
 
@@ -25,9 +30,26 @@ def load(paths):
                 if len(parts) == 8 and parts[0] == "RESULT":
                     _, tid, dom, prof, arch, osv, status, reason = parts
                     m = DUR.search(reason)
+                    f = FAILS.search(reason)
                     rows.append(dict(id=tid, domain=dom, profile=prof, arch=arch, os=osv,
                                      status=status, reason=reason,
-                                     dur=int(m.group(1)) if m else None))
+                                     dur=int(m.group(1)) if m else None,
+                                     fails=set(f.group(1).split(",")) if f else set()))
+    return rows
+
+
+def parity(rows):
+    """Downgrade our FAIL to PARITY when GitHub-hosted fails the same checks."""
+    ref = defaultdict(list)
+    for r in rows:
+        if r["profile"] == "hosted" and r["status"] != "SKIP":
+            ref[(r["domain"], r["id"])].append(r["fails"])
+    for r in rows:
+        sets = ref.get((r["domain"], r["id"]))
+        # Empty fails = the script crashed or failed without naming a check: never parity.
+        if (r["profile"] != "hosted" and r["status"] == "FAIL" and r["fails"] and sets
+                and r["fails"] <= set.intersection(*sets)):
+            r["status"] = "PARITY"
     return rows
 
 
@@ -46,9 +68,12 @@ def report(rows):
     for r in rows:
         groups[(r["domain"], r["id"], r["profile"], r["arch"], r["os"])].append(r)
     total = Counter(r["status"] for r in rows)
+    nfail = sum(r["status"] == "FAIL" and r["profile"] != "hosted" for r in rows)
     lines = ["# Test suite results", "",
              f"- Checks: **{len(rows)}** across **{len(groups)}** test/runner combinations",
-             f"- FAIL: **{total['FAIL']}**  WARN: **{total['WARN']}**  "
+             "- `hosted` rows are the GitHub-hosted reference and never gate; "
+             "PARITY = fails here exactly as on GitHub-hosted, not gated",
+             f"- FAIL: **{nfail}**  PARITY: **{total['PARITY']}**  WARN: **{total['WARN']}**  "
              f"PASS: **{total['PASS']}**  XFAIL: **{total['XFAIL']}**  "
              f"INFO: **{total['INFO']}**  SKIP: **{total['SKIP']}**",
              "",
@@ -56,7 +81,7 @@ def report(rows):
              "|---|---|---|---|---|---|---:|---:|---:|"]
 
     def has_fail(rs):
-        return any(x["status"] == "FAIL" for x in rs)
+        return any(x["status"] == "FAIL" and x["profile"] != "hosted" for x in rs)
 
     for key, rs in sorted(groups.items(), key=lambda kv: (not has_fail(kv[1]), kv[0])):
         c = Counter(x["status"] for x in rs)
@@ -65,7 +90,7 @@ def report(rows):
         p50 = f"{pct(durs, 0.5):.0f}s" if durs else "-"
         p95 = f"{pct(durs, 0.95):.0f}s" if durs else "-"
         lines.append(f"| {' | '.join(key)} | {result} | {len(rs)} | {p50} | {p95} |")
-    return "\n".join(lines) + "\n", total["FAIL"]
+    return "\n".join(lines) + "\n", nfail
 
 
 def sandboxes(paths):
@@ -95,9 +120,9 @@ def exit_code(rows, nfail):
 
 
 def selftest():
-    def mk(tid, status, dur):
-        return dict(id=tid, domain="security", profile="container", arch="x", os="y",
-                    status=status, reason=f"exit=0 dur={dur}s", dur=dur)
+    def mk(tid, status, dur, profile="container", fails=()):
+        return dict(id=tid, domain="security", profile=profile, arch="x", os="y",
+                    status=status, reason=f"exit=0 dur={dur}s", dur=dur, fails=set(fails))
     rows = [mk("a", "FAIL", 3), mk("a", "PASS", 5), mk("b", "PASS", 2)]
     md, nfail = report(rows)
     assert nfail == 1, md
@@ -107,6 +132,18 @@ def selftest():
     assert exit_code(rows, nfail) == 1
     assert exit_code([], 0) == 1                 # nothing ran -> gate fails
     assert exit_code(rows[1:], 0) == 0
+    # parity: hosted fails the same checks -> PARITY; we fail more -> FAIL;
+    # one hosted runner blocks it -> FAIL; hosted rows never gate
+    ref = [mk("p", "FAIL", 1, "hosted", {"a", "b"}), mk("p", "FAIL", 1, "hosted", {"a"}),
+           mk("q", "FAIL", 1, "hosted", {"a"}), mk("q", "PASS", 1, "hosted"),
+           mk("r", "SKIP", 1, "hosted")]
+    ours = [mk("p", "FAIL", 1, fails={"a"}), mk("p", "FAIL", 1, fails={"a", "b"}),
+            mk("q", "FAIL", 1, fails={"a"}), mk("r", "FAIL", 1, fails={"a"}),
+            mk("p", "FAIL", 1)]
+    parity(ref + ours)
+    assert [r["status"] for r in ours] == ["PARITY", "FAIL", "FAIL", "FAIL", "FAIL"], ours
+    md, nfail = report(ref + ours)
+    assert nfail == 4 and "PARITY: **1**" in md, md
     import tempfile
     with tempfile.NamedTemporaryFile("w", suffix=".tsv", delete=False) as f:
         f.write("RESULT\thost-info\tprobe\tvm\tppc64le\t24.04\tPASS\tvirt=kvm backend=incus\n"
@@ -124,7 +161,7 @@ def selftest():
 def main():
     if "--selftest" in sys.argv:
         return selftest()
-    rows = load(glob.glob("raw/**/verdict-*.tsv", recursive=True))
+    rows = parity(load(glob.glob("raw/**/verdict-*.tsv", recursive=True)))
     if rows:
         md, nfail = report(rows)
     else:
