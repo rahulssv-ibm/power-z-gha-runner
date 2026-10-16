@@ -38,10 +38,11 @@ runs:
         set -uo pipefail
         export RESULT_DIR="$RUNNER_TEMP/results"
         mkdir -p "$RESULT_DIR"
-        bash tests/lib/runner.sh "$DOMAIN"; rc=$?
+        # The step shell runs with -e: capture rc instead of dying here.
+        rc=0; bash tests/lib/runner.sh "$DOMAIN" || rc=$?
         # rc 1 = FAIL rows: the aggregate gates those (after the GitHub-hosted
         # parity check). Any other non-zero rc is a crash and fails the job.
-        [ "$rc" -eq 1 ] && rc=0
+        if [ "$rc" -eq 1 ]; then rc=0; fi
         {
           echo "## $DOMAIN / $PROFILE / $ARCH / $OS / #$INSTANCE"
           echo '```'
