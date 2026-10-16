@@ -34,11 +34,12 @@ jobs:
               ("ubuntu-22.04-s390x", "s390x", "22.04"),
               ("ubuntu-24.04-s390x", "s390x", "24.04"),
             ],
+            # Only labels a runner serves: a job on an unserved label stays queued
+            # and the aggregate never reports. Add ubuntu-2x.04-s390x-vm once
+            # s390x VM runners exist.
             "vm": [
               ("ubuntu-22.04-ppc64le-vm", "ppc64le", "22.04"),
               ("ubuntu-24.04-ppc64le-vm", "ppc64le", "24.04"),
-              ("ubuntu-22.04-s390x-vm", "s390x", "22.04"),
-              ("ubuntu-24.04-s390x-vm", "s390x", "24.04"),
             ],
             # GitHub-hosted reference for the parity gate: every arch, one copy.
             "hosted": [

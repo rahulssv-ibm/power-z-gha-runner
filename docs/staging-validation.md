@@ -27,13 +27,13 @@ and stress runs below would execute on production runners.
 | Profile   | Labels |
 |-----------|--------|
 | container | `ubuntu-22.04-ppc64le-p10`, `ubuntu-24.04-ppc64le-p10`, `ubuntu-22.04-s390x`, `ubuntu-24.04-s390x` |
-| vm        | `ubuntu-22.04-ppc64le-vm`, `ubuntu-24.04-ppc64le-vm`, `ubuntu-22.04-s390x-vm`, `ubuntu-24.04-s390x-vm` |
+| vm        | `ubuntu-22.04-ppc64le-vm`, `ubuntu-24.04-ppc64le-vm` (no s390x VM runners yet) |
 
 ## Before you start
 
 1. Deploy the change to staging and write down exactly what is deployed
    (versions, commit, config diff). Results mean nothing without it.
-2. Check that staging runners are online for all eight labels. A label with
+2. Check that staging runners are online for all six labels. A label with
    no online runner leaves its jobs queued until they time out.
 3. If staging has both LXD and Incus hosts, make sure both will receive jobs.
    The run's summary lists which backend served each probe job (see "Probe"
@@ -93,7 +93,7 @@ runs.
 | Check | Required |
 |-------|----------|
 | `aggregate` job | Green. It fails on any `FAIL`, on any suite job that crashed or was cancelled, and when no results arrived. |
-| Coverage | All eight labels appear in the results table. A missing label means its jobs never ran. |
+| Coverage | All six labels appear in the results table. A missing label means its jobs never ran. |
 | Security | Every row `PASS` on every label, except known findings listed under "Known findings". |
 | Capability | No `FAIL`. `XFAIL` on container rows is expected. |
 | Capability `WARN` | Each one explained before promoting (see below). |
