@@ -93,7 +93,7 @@ def report(rows):
              "",
              "| domain | id | profile | arch | os | result | runs | p50 | p95 | failing checks | vs GitHub-hosted |",
              "|---|---|---|---|---|---|---:|---:|---:|---|---|"]
-    errors = []
+    errors = defaultdict(list)   # (domain, id, detail) -> labels
     for key, rs in sorted(groups.items(),
                           key=lambda kv: (not any(x["status"] == "FAIL" for x in kv[1]), kv[0])):
         c = Counter(x["status"] for x in rs)
@@ -106,8 +106,7 @@ def report(rows):
         vs = versus(bad) if bad else ""
         lines.append(f"| {' | '.join(key)} | {result} | {len(rs)} | {p50} | {p95} | {checks} | {vs} |")
         if c["FAIL"]:
-            errors.append(f"::error title=FAIL {key[0]}/{key[1]} ({key[2]} {key[3]} {key[4]})::"
-                          f"{checks or 'see the job logs'} ({vs})")
+            errors[(key[0], key[1], f"{checks or 'see the job logs'} ({vs})")].append(" ".join(key[2:]))
     if ref:
         lines += ["", "## GitHub-hosted reference", "",
                   "Never gates. Rows not listed passed, or are INFO/SKIP.", "",
@@ -117,7 +116,10 @@ def report(rows):
             if r["status"] not in ("PASS", "INFO", "SKIP"):
                 lines.append(f"| {r['domain']} | {r['id']} | {r['arch']} | {r['os']} | "
                              f"{r['status']} | {', '.join(sorted(r['fails']))} |")
-    return "\n".join(lines) + "\n", total["FAIL"], errors
+    # One annotation per test, not per runner: GitHub shows only 10 per step.
+    notes = [f"::error title=FAIL {d}/{i}::{detail} on {', '.join(where)}"
+             for (d, i, detail), where in sorted(errors.items())]
+    return "\n".join(lines) + "\n", total["FAIL"], notes
 
 
 def sandboxes(paths):
@@ -178,6 +180,9 @@ def selftest():
     assert "only here: b" in head, md          # p failed b, which one hosted runner blocks
     assert "| r | container | x | y | FAIL | 1 | 1s | 1s | a | not run on GitHub-hosted |" in head, md  # hosted SKIPped r
     assert len(errors) == 3 and all(e.startswith("::error title=FAIL security/") for e in errors), errors
+    md, _, errors = report([mk("s", "FAIL", 1, fails={"a"}) | {"ref": None, "arch": a} for a in "xyz"])
+    assert errors == ["::error title=FAIL security/s::a (not run on GitHub-hosted) on container x y, "
+                      "container y y, container z y"], errors   # one annotation, all runners
     import tempfile
     with tempfile.NamedTemporaryFile("w", suffix=".tsv", delete=False) as f:
         f.write("RESULT\thost-info\tprobe\tvm\tppc64le\t24.04\tPASS\tvirt=kvm backend=incus\n"
