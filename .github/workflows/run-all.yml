@@ -4,10 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       suite:
-        description: Which suite to run (vm/all need ubuntu-*-vm runners online, or vm jobs sit queued)
+        description: Which suite to run
         type: choice
-        # container until VM runners exist on staging; switch back to all then.
-        default: container
+        default: all
         options: [all, container, vm, capability, security, stress, probe]
       arch:
         description: Architecture filter
