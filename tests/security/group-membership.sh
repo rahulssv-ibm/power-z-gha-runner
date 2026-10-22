@@ -10,8 +10,12 @@ dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../lib" && pwd)"
 # GitHub-hosted puts the runner user in `docker`, so group:docker reads PARITY
 # there (non-gating); lxd/incus do not exist on hosted, so those gate only on
 # our runners.
+#
+# Only host-root-equivalent groups are checked. `kvm` is deliberately excluded:
+# it grants /dev/kvm (nested virt the capability suite exercises), not host
+# root, so flagging it would gate legitimately kvm-enabled runners.
 groups_now="$(id -nG 2>/dev/null)"
-for g in docker lxd incus incus-admin kvm; do
+for g in docker lxd incus incus-admin; do
   if printf '%s\n' $groups_now | grep -qx "$g"; then
     fail "group:$g" "job user is in '$g' (host-equivalent control via its socket/device)"
   else

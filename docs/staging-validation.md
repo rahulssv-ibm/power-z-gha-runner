@@ -191,28 +191,38 @@ staging blocks.
 
 ### Reproduced from the 2026 X-Force Red retest
 
-Each row below reproduces one finding from that report. The fixes live in
-`actions-deploy` (PowerVS and IBM Z Ansible); a row flips to `PASS` once its
-fix is deployed to the label under test. Several read `PARITY` until then,
-because GitHub-hosted shares them.
+Each row below reproduces one finding. Fixes span three repos: this suite
+(tests), `actions-deploy` (PowerVS + IBM Z Ansible: profiles, firewall, env),
+and `action-runner-image-pz` (the job container image: runner user/groups). A
+row flips to `PASS` once its fix reaches the label under test.
 
-- **`security/sudo-nopasswd` (9984-4).** Passwordless sudo to root. `PARITY`
-  (GitHub-hosted grants it too) until the runner user's sudoers is narrowed.
 - **`security/egress-ports` (9984-1, 9984-3).** Egress to non-build ports
-  (SMTP/IRC/DoT) is open — the channel a callback shell uses. `PARITY` until
+  (IRC/DoT) is open — the channel a callback shell uses. `PARITY` until
   `container_egress_filter` is enabled on the label; then our rows `PASS`
-  while hosted stays `FAIL` (non-gating).
+  while hosted stays `FAIL` (non-gating). Fix: `actions-deploy` egress policy.
 - **`security/capabilities` (9984-6).** Container keeps host-reaching caps
   (`CAP_SYS_MODULE`/`RAWIO`/`TIME`/`BOOT`). Container-only, no hosted
   reference, so it `FAIL`s until the `lxc.cap.drop` fix reaches the label.
-- **`security/group-membership` (9984-8).** Job user in `docker`/`lxd`/`incus`.
-  `group:docker` reads `PARITY`; `lxd`/`incus` gate only on our runners.
-- **`security/alg-copy-fail` (9984-5, s390x).** AF_ALG `aead` reachability
-  (CVE-2026-31431). `PASS` while seccomp blocks it; a FAIL means a seccomp
-  regression re-opened the path on s390x.
-- **`probe/session-age` (9984-2)** and **`probe/devlxd` (9984-7)** are `INFO`
-  (never gate): they record runner lifetime/ephemerality and what the guest
-  API exposes, for the operator to read.
+- **`security/alg-copy-fail` (9984-5, s390x).** AF_ALG interface reachability
+  (CVE-2026-31431). `PASS` while seccomp blocks the AF_ALG socket; a FAIL means
+  a seccomp regression re-opened it on s390x. Fix: `actions-deploy` IBM Z
+  modprobe blocklist + kernel patch.
+- **`security/group-membership` (9984-8).** Job user's host-control groups.
+  `lxd` is removed from the runner user in `action-runner-image-pz`, so
+  `group:lxd` reads `PASS`; `group:docker` stays `PARITY` (kept, matches
+  GitHub-hosted, needed for docker-in-container jobs).
+- **`security/sudo-nopasswd` (9984-4).** Passwordless sudo to root. **Accepted
+  as parity** — GitHub-hosted grants it too, and removing it breaks
+  `sudo`-using jobs. Reads `PARITY`, does not gate. Revisit only with a
+  targeted sudoers design in `action-runner-image-pz`.
+- **`probe/session-age` (9984-2).** `INFO`. Runners are ephemeral (one job) and
+  the finished container is now reaped after 1h (`LXD_DELETE_GITHUB_RUNNER_CONTAINER_AFTER=1`
+  in `actions-deploy` env templates), down from 24h/6h.
+- **`probe/devlxd` (9984-7).** `INFO`. The LXD/Incus guest API is **kept on
+  purpose**: the suite uses it to report which backend ran each job, and the
+  dangerous host-info sub-case (the host kernel ring buffer) is already gated
+  by `security/host-escape` (`host-dmesg`). Accepted; revisit if the guest API
+  is ever disabled fleet-wide.
 
 ## What the suite does not cover yet
 
