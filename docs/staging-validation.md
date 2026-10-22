@@ -189,6 +189,31 @@ staging blocks.
   else, add that value to `tests/security/host-escape.sh` instead of
   ignoring the failure.
 
+### Reproduced from the 2026 X-Force Red retest
+
+Each row below reproduces one finding from that report. The fixes live in
+`actions-deploy` (PowerVS and IBM Z Ansible); a row flips to `PASS` once its
+fix is deployed to the label under test. Several read `PARITY` until then,
+because GitHub-hosted shares them.
+
+- **`security/sudo-nopasswd` (9984-4).** Passwordless sudo to root. `PARITY`
+  (GitHub-hosted grants it too) until the runner user's sudoers is narrowed.
+- **`security/egress-ports` (9984-1, 9984-3).** Egress to non-build ports
+  (SMTP/IRC/DoT) is open — the channel a callback shell uses. `PARITY` until
+  `container_egress_filter` is enabled on the label; then our rows `PASS`
+  while hosted stays `FAIL` (non-gating).
+- **`security/capabilities` (9984-6).** Container keeps host-reaching caps
+  (`CAP_SYS_MODULE`/`RAWIO`/`TIME`/`BOOT`). Container-only, no hosted
+  reference, so it `FAIL`s until the `lxc.cap.drop` fix reaches the label.
+- **`security/group-membership` (9984-8).** Job user in `docker`/`lxd`/`incus`.
+  `group:docker` reads `PARITY`; `lxd`/`incus` gate only on our runners.
+- **`security/alg-copy-fail` (9984-5, s390x).** AF_ALG `aead` reachability
+  (CVE-2026-31431). `PASS` while seccomp blocks it; a FAIL means a seccomp
+  regression re-opened the path on s390x.
+- **`probe/session-age` (9984-2)** and **`probe/devlxd` (9984-7)** are `INFO`
+  (never gate): they record runner lifetime/ephemerality and what the guest
+  API exposes, for the operator to read.
+
 ## What the suite does not cover yet
 
 - Network isolation between sibling runners on a shared bridge (whether one

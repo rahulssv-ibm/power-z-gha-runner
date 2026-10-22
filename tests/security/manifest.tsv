@@ -4,3 +4,8 @@ secret-leak	secret-leak.sh	container,vm	PASS	PASS	-
 cross-tenant	cross-tenant.sh	container,vm	PASS	PASS	-
 egress-abuse	egress-abuse.sh	container,vm	PASS	PASS	-
 resource-abuse	resource-abuse.sh	container	PASS	-	-
+egress-ports	egress-ports.sh	container,vm	PASS	PASS	9984-1,9984-3
+sudo-nopasswd	sudo-nopasswd.sh	container,vm	PASS	PASS	9984-4
+capabilities	capabilities.sh	container	PASS	-	9984-6
+group-membership	group-membership.sh	container,vm	PASS	PASS	9984-8
+algif-aead	alg-copy-fail.sh	container,vm	PASS	PASS	9984-5
