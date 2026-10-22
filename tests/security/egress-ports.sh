@@ -12,8 +12,18 @@ dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../lib" && pwd)"
 # the generic "can a job open a channel off-net on a non-allowlisted port" check.
 # While our runners match GitHub-hosted (egress wide open) these read PARITY, not
 # FAIL; they become a real PASS once an egress filter is in place on our runners.
+#
+# Ports must be ones GitHub-hosted leaves OPEN, or the parity model mislabels
+# them: port 25 is blocked upstream on hosted (Azure) but not on every one of
+# our runners, so an open:25 here would never parity-match and would gate as a
+# false "only here" FAIL. SMTP/25 is therefore not probed; IRC/6667 and DoT/853
+# are open on hosted and genuinely read PARITY until our egress filter lands.
+if ! command -v timeout >/dev/null; then
+  # Without timeout a connect could hang, and a non-zero "command not found"
+  # would read as "blocked" and mask wide-open egress. Report honestly instead.
+  skip_test "egress-ports" "timeout(1) not available to bound connect attempts"
+fi
 for hp in \
-    smtp:smtp.gmail.com:25 \
     irc:irc.libera.chat:6667 \
     dot:1.1.1.1:853; do
   name="${hp%%:*}"; rest="${hp#*:}"; host="${rest%:*}"; port="${rest##*:}"

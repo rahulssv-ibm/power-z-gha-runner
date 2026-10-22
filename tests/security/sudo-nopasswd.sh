@@ -13,6 +13,10 @@ dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../lib" && pwd)"
 if ! command -v sudo >/dev/null; then
   skip_test "sudo-nopasswd" "sudo not installed"
 fi
+# Clear any cached sudo timestamp first: if an earlier job step authenticated,
+# `sudo -n` would succeed from the cache and falsely report NOPASSWD. -k needs
+# no password and only invalidates the timestamp.
+sudo -k 2>/dev/null || true
 # -n: never prompt. Succeeds only when a NOPASSWD rule covers the invoking user.
 if sudo -n true 2>/dev/null; then
   fail "sudo-nopasswd" "passwordless sudo to root available (NOPASSWD); job can become root"
