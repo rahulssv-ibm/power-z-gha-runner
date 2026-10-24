@@ -171,7 +171,10 @@ def explain(fails, warns, parities, fixes):
                   f"- **Log:** job `{d} {x['label']} #{x['instance']}`, step `Run {d}`: the folded "
                   f"`{d}/{i}` group and the block after it; or `logs/{i}.log` in artifact "
                   f"`result-{d}-{x['profile']}-{x['label']}-{x['instance']}`.", ""]
-        msg = [f"{c}: {r}" if r else c for c, r in checks.items()] + [f"Fix: {fix}", f"On: {runs_on(rs)}"]
+        # Lead with what gates (vs GitHub-hosted): the first line is all a collapsed annotation shows.
+        vs = versus(rs)
+        msg = ([vs[:1].upper() + vs[1:]] + [f"{c}: {r}" if r else c for c, r in checks.items()]
+               + [f"Fix: {fix}", f"On: {runs_on(rs)}"])
         notes.append(f"::error title=FAIL {d}/{i}::{esc(chr(10).join(msg))}")
     if warns:
         lines += ["", "## Needs an explanation (WARN)", "",
@@ -313,7 +316,7 @@ def selftest():
     rs = [mk("s", "FAIL", 1, fails={"a"}, label=lb, why={"a": "port open"}) | {"ref": None}
           for lb in ("ubuntu-24.04-ppc64le", "ubuntu-24.04-ppc64le-p10")]
     md, _, errors = report(rs, {("security", "s"): "close the port"}, ["ubuntu-24.04-ppc64le", "ubuntu-24.04-s390x"])
-    assert errors[0] == ("::error title=FAIL security/s::a: port open%0AFix: close the port%0A"
+    assert errors[0] == ("::error title=FAIL security/s::Not run on GitHub-hosted%0Aa: port open%0AFix: close the port%0A"
                          "On: container ubuntu-24.04-ppc64le, container ubuntu-24.04-ppc64le-p10"), errors
     assert "  - `a`: port open" in md, md
     # a selected label that reported nothing is named
