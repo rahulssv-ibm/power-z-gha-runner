@@ -190,9 +190,12 @@ staging blocks.
 
 - **`security/secret-leak`, `cred-read`.** Jobs run as the runner user with
   passwordless sudo, so they can read the runner's credential files under
-  `/opt/runner-cache`. A job that steals them could register a rogue runner
-  and receive other communities' jobs. Passes only when long-lived
-  credentials are not on disk in the sandbox, e.g. ephemeral or JIT runners.
+  `/opt/runner-cache`. GitHub-hosted exposes `.credentials` too (`PARITY`), but
+  not `.credentials_rsaparams`, the runner's private key, so that check gates
+  as "only here". The listener writes both files whether it is registered with
+  `config.sh` or `--jitconfig`, so JIT alone does not remove them. Runners are
+  `--ephemeral` in a per-job container, which limits a stolen key to the
+  registration of the job that stole it. Track it as a known finding.
 - **`security/egress-abuse`, `mining-egress`.** Fails when outbound traffic
   to known crypto-mining pools is not blocked.
 - **`security/host-escape`, `sandbox-type` on VMs.** Expects `kvm` or `qemu`
@@ -225,13 +228,16 @@ row flips to `PASS` once its fix reaches the label under test.
   PowerVS remote/image server (`lxd_remote_server_init.yml.j2`), PowerVS Incus
   (`container_driver.yml`), and IBM Z LXD + Incus preseeds.
 - **`security/alg-copy-fail` (9984-5, s390x).** AF_ALG interface reachability
-  (CVE-2026-31431). `PASS` while seccomp blocks the AF_ALG socket; a FAIL means
-  a seccomp regression re-opened it on s390x. Fix: `actions-deploy` IBM Z
+  (CVE-2026-31431). `PASS` while seccomp blocks the AF_ALG socket. GitHub-hosted
+  leaves AF_ALG open, so an open socket reads `PARITY`; on ppc64le it is open
+  (pentest 2026-10-24) and relies on the patched host kernel. Fix: `actions-deploy` IBM Z
   modprobe blocklist + kernel patch.
-- **`security/group-membership` (9984-8).** Job user's host-control groups.
-  `lxd` is removed from the runner user in `action-runner-image-pz`, so
-  `group:lxd` reads `PASS`; `group:docker` stays `PARITY` (kept, matches
-  GitHub-hosted, needed for docker-in-container jobs).
+- **`security/group-membership` (9984-8).** Job user's container-manager
+  groups. `action-runner-image-pz` main still adds the runner user to `lxd` and
+  `incus-admin` in every build script (`scripts/{lxd,incus}_{container,vm}.sh`,
+  `scripts/vm.sh`), so both read `FAIL` until images built without them reach
+  the label (`--tags build_lxd_image`). `group:docker` stays `PARITY` (kept,
+  matches GitHub-hosted, needed for docker-in-container jobs).
 - **`security/sudo-nopasswd` (9984-4).** Passwordless sudo to root. **Accepted
   as parity** — GitHub-hosted grants it too, and removing it breaks
   `sudo`-using jobs. Reads `PARITY`, does not gate. Revisit only with a
