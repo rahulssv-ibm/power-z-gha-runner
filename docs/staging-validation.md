@@ -199,10 +199,20 @@ row flips to `PASS` once its fix reaches the label under test.
 - **`security/egress-ports` (9984-1, 9984-3).** Egress to non-build ports
   (IRC/DoT) is open — the channel a callback shell uses. `PARITY` until
   `container_egress_filter` is enabled on the label; then our rows `PASS`
-  while hosted stays `FAIL` (non-gating). Fix: `actions-deploy` egress policy.
+  while hosted stays `FAIL` (non-gating). Fix: opt-in `container_egress_filter`
+  (default off) on **both** trees — PowerVS via a firewalld policy
+  (`container-egress-filter.policy.xml`), IBM Z via a `GHA_EGRESS` allowlist
+  chain in both iptables and ip6tables (`vpc-on-ibm-z`
+  `tasks/container_egress_filter.yml`, persisted with netfilter-persistent;
+  v6 included because `lxdbr0` has `ipv6.nat`). Both allow 22/53/80/123/443 and
+  reject the rest. Applied on provision/rebuild (rides the init block), so
+  enabling it on an already-provisioned host needs a reprovision.
 - **`security/capabilities` (9984-6).** Container keeps host-reaching caps
   (`CAP_SYS_MODULE`/`RAWIO`/`TIME`/`BOOT`). Container-only, no hosted
-  reference, so it `FAIL`s until the `lxc.cap.drop` fix reaches the label.
+  reference, so it `FAIL`s until the `lxc.cap.drop` fix reaches the label. Fix
+  covers every launch profile on both trees: PowerVS worker (`lxd_init.yml.j2`),
+  PowerVS remote/image server (`lxd_remote_server_init.yml.j2`), PowerVS Incus
+  (`container_driver.yml`), and IBM Z LXD + Incus preseeds.
 - **`security/alg-copy-fail` (9984-5, s390x).** AF_ALG interface reachability
   (CVE-2026-31431). `PASS` while seccomp blocks the AF_ALG socket; a FAIL means
   a seccomp regression re-opened it on s390x. Fix: `actions-deploy` IBM Z
