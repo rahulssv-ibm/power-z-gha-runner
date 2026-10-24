@@ -1,0 +1,34 @@
+name: Plan runner labels
+description: >
+  Turn run-all's runner-label selection into one job matrix per profile
+  (container, vm, and the GitHub-hosted reference). See plan.py.
+inputs:
+  selection:
+    description: toJSON(inputs) of the run-all dispatch
+    required: true
+  fallback:
+    description: Labels to run when none are selected (the RUNNER_LABELS repository variable)
+    required: false
+    default: ""
+outputs:
+  container:
+    description: Matrix JSON for the container suites, or empty when no container label is selected
+    value: ${{ steps.plan.outputs.container }}
+  vm:
+    description: Matrix JSON for the VM suites, or empty when no VM label is selected
+    value: ${{ steps.plan.outputs.vm }}
+  hosted:
+    description: Matrix JSON for the GitHub-hosted reference
+    value: ${{ steps.plan.outputs.hosted }}
+  labels:
+    description: Comma-separated labels selected, for the aggregate's coverage check
+    value: ${{ steps.plan.outputs.labels }}
+runs:
+  using: composite
+  steps:
+    - id: plan
+      shell: bash
+      env:
+        INPUTS_JSON: ${{ inputs.selection }}
+        FALLBACK: ${{ inputs.fallback }}
+      run: python3 "$GITHUB_ACTION_PATH/plan.py"

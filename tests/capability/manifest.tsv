@@ -1,19 +1,19 @@
-# id	script	profiles	expected_container	expected_vm	issue
-kernel-modules	kernel-modules.sh	container,vm	XFAIL	PASS	43
-netns	netns.sh	container,vm	PASS	PASS	43
-ip-mgmt	ip-mgmt.sh	container,vm	PASS	PASS	43
-dev-ioctl	dev-ioctl.sh	container,vm	PASS	PASS	43
-mount-ops	mount-ops.sh	container,vm	PASS	PASS	7
-overlayfs-mkosi	overlayfs-mkosi.sh	container,vm	PASS	PASS	7
-luks-nbd	luks-nbd.sh	container,vm	XFAIL	PASS	44
-podman-net	podman-net.sh	container,vm	XFAIL	PASS	63
-cpu-count	cpu-count.sh	container,vm	XFAIL	PASS	38
-kvm	kvm.sh	container,vm	XFAIL	PASS	33
-falco-delete-module	falco-delete-module.sh	container,vm	XFAIL	PASS	3
-mtu-build	mtu-build.sh	container,vm	PASS	PASS	59
-mmdebstrap-dns	mmdebstrap-dns.sh	container,vm	PASS	PASS	43
-rscrypto-perf	rscrypto-perf.sh	container,vm	XFAIL	PASS	71
-manageiq-mock	manageiq-mock.sh	container,vm	PASS	PASS	78
-kata-pause	kata-pause.sh	container,vm	PASS	PASS	43
-kind-build	kind-build.sh	vm	-	PASS	49
-podman-rootless	podman-rootless.sh	container,vm	PASS	PASS	143
+# id	script	profiles	expected_container	expected_vm	issue	fix
+kernel-modules	kernel-modules.sh	container,vm	XFAIL	PASS	43	VM: ship the guest kernel's modules (linux-modules-extra) in the VM image so sudo modprobe loop works (issue #43).
+netns	netns.sh	container,vm	PASS	PASS	43	Allow network namespaces: security.nesting=true in the profile and no AppArmor/seccomp deny on unshare/setns (issue #43).
+ip-mgmt	ip-mgmt.sh	container,vm	PASS	PASS	43	Allow adding a dummy link and an address: CAP_NET_ADMIN in the sandbox's user namespace (security.nesting=true) and the dummy module on the host (issue #43).
+dev-ioctl	dev-ioctl.sh	container,vm	PASS	PASS	43	Allow ioctl on /dev/random: check the sandbox's seccomp and AppArmor policy (issue #43).
+mount-ops	mount-ops.sh	container,vm	PASS	PASS	7	Allow tmpfs mounts under sudo: security.nesting=true and the profile's raw.lxc that keeps /proc, /sys and the cgroup tree writable (issue #7).
+overlayfs-mkosi	overlayfs-mkosi.sh	container,vm	PASS	PASS	7	Allow unprivileged user namespaces and overlay mounts for mkosi: kernel.apparmor_restrict_unprivileged_userns=0 and overlay support in the kernel (issue #7).
+luks-nbd	luks-nbd.sh	container,vm	XFAIL	PASS	44	VM: the image needs the dm_crypt and nbd modules (linux-modules-extra) and cryptsetup (issue #44).
+podman-net	podman-net.sh	container,vm	XFAIL	PASS	63	VM: DNS inside a podman container must work; check AppArmor for podman/buildah and that the egress filter allows DNS (issue #63).
+cpu-count	cpu-count.sh	container,vm	XFAIL	PASS	38	More CPUs are online than the job can use, so tools oversubscribe: give the sandbox a cpuset (limits.cpu as a count or a range, not a time quota) so it sees only its own CPUs (issue #38).
+kvm	kvm.sh	container,vm	XFAIL	PASS	33	VM: expose /dev/kvm (nested virtualization) inside the VM (issues #33, #110).
+falco-delete-module	falco-delete-module.sh	container,vm	XFAIL	PASS	3	VM: delete_module must reach the kernel (ENOENT), not be filtered by seccomp (ENOSYS) (issue #3).
+mtu-build	mtu-build.sh	container,vm	PASS	PASS	59	Image pulls stall in the TLS handshake: the bridge MTU (bridge.mtu on lxdbr0/incusbr0) and docker's MTU must not exceed the PowerVS network MTU (pi_network_mtu) (issue #59).
+mmdebstrap-dns	mmdebstrap-dns.sh	container,vm	PASS	PASS	43	mmdebstrap's own network namespace cannot resolve names: check the sandbox's resolver setup and that the egress filter allows DNS (issue #43).
+rscrypto-perf	rscrypto-perf.sh	container,vm	XFAIL	PASS	71	VM: install perf and allow unprivileged cycles:u (kernel.perf_event_paranoid <= 2) (issue #71).
+manageiq-mock	manageiq-mock.sh	container,vm	PASS	PASS	78	A privileged docker run (mock) must work: nesting on and AppArmor not blocking docker's privileged operations (issue #78).
+kata-pause	kata-pause.sh	container,vm	PASS	PASS	43	The Kata pause image build (sudo make) failed: read the log tail; usually the git clone, a registry pull or docker inside the sandbox (issue #43).
+kind-build	kind-build.sh	vm	-	PASS	49	kind needs privileged docker in the VM: check docker in the VM image and the 'Setup kind' step of this job (issue #49).
+podman-rootless	podman-rootless.sh	container,vm	PASS	PASS	143	The sandbox's ID map is smaller than the runner's /etc/subuid range: on Incus hosts run --tags incus_idmap (1e9 IDs); on LXD give root a large enough subordinate range (issue #143).
