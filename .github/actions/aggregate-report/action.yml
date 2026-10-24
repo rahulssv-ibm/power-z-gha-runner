@@ -1,5 +1,13 @@
 name: Aggregate report
-description: Merge all result artifacts into one pass/fail matrix and gate on FAIL.
+description: >
+  Merge all result artifacts into one pass/fail matrix, explain each failure
+  and how to fix it, and gate on FAIL. The calling job must check out the
+  repository first (the fix hints come from tests/*/manifest.tsv).
+inputs:
+  labels:
+    description: Comma-separated runner labels the run selected; any without results is reported
+    required: false
+    default: ""
 runs:
   using: composite
   steps:
@@ -10,6 +18,8 @@ runs:
         path: raw
     - name: Summarize and gate
       shell: bash
+      env:
+        SELECTED_LABELS: ${{ inputs.labels }}
       run: python3 "$GITHUB_ACTION_PATH/summarize.py"
     - name: Upload summary
       if: always()

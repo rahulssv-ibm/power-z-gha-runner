@@ -7,17 +7,29 @@ on:
         description: Which suite to run
         type: choice
         default: all
-        options: [all, container, vm, capability, security, stress, probe]
-      arch:
-        description: Architecture filter
-        type: choice
-        default: all
-        options: [all, ppc64le, s390x]
-      os:
-        description: Ubuntu version filter
-        type: choice
-        default: all
-        options: [all, "22.04", "24.04"]
+        options: [all, capability, security, stress, probe]
+      # Runner labels: tick the ones the target environment (staging, prod,
+      # pentest, ...) serves. A label no runner serves stays queued until
+      # GitHub cancels it. Each id is the label with '.' written as '_';
+      # .github/actions/plan-labels reads profile/arch/os from the label.
+      ubuntu-22_04-ppc64le:     { description: ubuntu-22.04-ppc64le,     type: boolean, default: false }
+      ubuntu-24_04-ppc64le:     { description: ubuntu-24.04-ppc64le,     type: boolean, default: false }
+      ubuntu-26_04-ppc64le:     { description: ubuntu-26.04-ppc64le,     type: boolean, default: false }
+      ubuntu-22_04-ppc64le-p10: { description: ubuntu-22.04-ppc64le-p10, type: boolean, default: false }
+      ubuntu-24_04-ppc64le-p10: { description: ubuntu-24.04-ppc64le-p10, type: boolean, default: false }
+      ubuntu-26_04-ppc64le-p10: { description: ubuntu-26.04-ppc64le-p10, type: boolean, default: false }
+      ubuntu-22_04-ppc64le-vm:  { description: ubuntu-22.04-ppc64le-vm,  type: boolean, default: false }
+      ubuntu-24_04-ppc64le-vm:  { description: ubuntu-24.04-ppc64le-vm,  type: boolean, default: false }
+      ubuntu-26_04-ppc64le-vm:  { description: ubuntu-26.04-ppc64le-vm,  type: boolean, default: false }
+      ubuntu-22_04-s390x:       { description: ubuntu-22.04-s390x,       type: boolean, default: false }
+      ubuntu-24_04-s390x:       { description: ubuntu-24.04-s390x,       type: boolean, default: false }
+      ubuntu-26_04-s390x:       { description: ubuntu-26.04-s390x,       type: boolean, default: false }
+      labels:
+        description: >-
+          More labels, comma-separated, e.g. ubuntu-24.04-ppc64le-2xlarge-p10, ubuntu-24.04-s390x-vm
+          (any ubuntu-<os>-<arch>[-...][-vm]). Nothing ticked or typed: the RUNNER_LABELS repo variable.
+        type: string
+        default: ""
       instances:
         description: Copies of each job, for service load (labels x instances must be <= 256)
         type: choice
@@ -33,64 +45,94 @@ permissions:
   contents: read
 
 jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      container: ${{ steps.plan.outputs.container }}
+      vm: ${{ steps.plan.outputs.vm }}
+      hosted: ${{ steps.plan.outputs.hosted }}
+      labels: ${{ steps.plan.outputs.labels }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: plan
+        uses: ./.github/actions/plan-labels
+        with:
+          selection: ${{ toJSON(inputs) }}
+          fallback: ${{ vars.RUNNER_LABELS }}
+
   c-capability:
-    if: contains(fromJSON('["all","container","capability"]'), inputs.suite)
+    needs: plan
+    if: needs.plan.outputs.container != '' && contains(fromJSON('["all","capability"]'), inputs.suite)
     uses: ./.github/workflows/_suite.yml
-    with: { domain: capability, profile: container, arch: "${{ inputs.arch }}", os: "${{ inputs.os }}", instances: "${{ inputs.instances }}", max_parallel: "${{ inputs.max_parallel }}" }
+    with: { domain: capability, profile: container, matrix: "${{ needs.plan.outputs.container }}", max_parallel: "${{ inputs.max_parallel }}" }
   c-security:
-    if: contains(fromJSON('["all","container","security"]'), inputs.suite)
+    needs: plan
+    if: needs.plan.outputs.container != '' && contains(fromJSON('["all","security"]'), inputs.suite)
     uses: ./.github/workflows/_suite.yml
-    with: { domain: security, profile: container, arch: "${{ inputs.arch }}", os: "${{ inputs.os }}", instances: "${{ inputs.instances }}", max_parallel: "${{ inputs.max_parallel }}" }
+    with: { domain: security, profile: container, matrix: "${{ needs.plan.outputs.container }}", max_parallel: "${{ inputs.max_parallel }}" }
   c-stress:
-    if: contains(fromJSON('["all","container","stress"]'), inputs.suite)
+    needs: plan
+    if: needs.plan.outputs.container != '' && contains(fromJSON('["all","stress"]'), inputs.suite)
     uses: ./.github/workflows/_suite.yml
-    with: { domain: stress, profile: container, arch: "${{ inputs.arch }}", os: "${{ inputs.os }}", instances: "${{ inputs.instances }}", max_parallel: "${{ inputs.max_parallel }}" }
+    with: { domain: stress, profile: container, matrix: "${{ needs.plan.outputs.container }}", max_parallel: "${{ inputs.max_parallel }}" }
   c-probe:
-    if: contains(fromJSON('["all","container","probe"]'), inputs.suite)
+    needs: plan
+    if: needs.plan.outputs.container != '' && contains(fromJSON('["all","probe"]'), inputs.suite)
     uses: ./.github/workflows/_suite.yml
-    with: { domain: probe, profile: container, arch: "${{ inputs.arch }}", os: "${{ inputs.os }}", instances: "${{ inputs.instances }}", max_parallel: "${{ inputs.max_parallel }}" }
+    with: { domain: probe, profile: container, matrix: "${{ needs.plan.outputs.container }}", max_parallel: "${{ inputs.max_parallel }}" }
 
   v-capability:
-    if: contains(fromJSON('["all","vm","capability"]'), inputs.suite)
+    needs: plan
+    if: needs.plan.outputs.vm != '' && contains(fromJSON('["all","capability"]'), inputs.suite)
     uses: ./.github/workflows/_suite.yml
-    with: { domain: capability, profile: vm, arch: "${{ inputs.arch }}", os: "${{ inputs.os }}", instances: "${{ inputs.instances }}", max_parallel: "${{ inputs.max_parallel }}" }
+    with: { domain: capability, profile: vm, matrix: "${{ needs.plan.outputs.vm }}", max_parallel: "${{ inputs.max_parallel }}" }
   v-security:
-    if: contains(fromJSON('["all","vm","security"]'), inputs.suite)
+    needs: plan
+    if: needs.plan.outputs.vm != '' && contains(fromJSON('["all","security"]'), inputs.suite)
     uses: ./.github/workflows/_suite.yml
-    with: { domain: security, profile: vm, arch: "${{ inputs.arch }}", os: "${{ inputs.os }}", instances: "${{ inputs.instances }}", max_parallel: "${{ inputs.max_parallel }}" }
+    with: { domain: security, profile: vm, matrix: "${{ needs.plan.outputs.vm }}", max_parallel: "${{ inputs.max_parallel }}" }
   v-stress:
-    if: contains(fromJSON('["all","vm","stress"]'), inputs.suite)
+    needs: plan
+    if: needs.plan.outputs.vm != '' && contains(fromJSON('["all","stress"]'), inputs.suite)
     uses: ./.github/workflows/_suite.yml
-    with: { domain: stress, profile: vm, arch: "${{ inputs.arch }}", os: "${{ inputs.os }}", instances: "${{ inputs.instances }}", max_parallel: "${{ inputs.max_parallel }}" }
+    with: { domain: stress, profile: vm, matrix: "${{ needs.plan.outputs.vm }}", max_parallel: "${{ inputs.max_parallel }}" }
   v-probe:
-    if: contains(fromJSON('["all","vm","probe"]'), inputs.suite)
+    needs: plan
+    if: needs.plan.outputs.vm != '' && contains(fromJSON('["all","probe"]'), inputs.suite)
     uses: ./.github/workflows/_suite.yml
-    with: { domain: probe, profile: vm, arch: "${{ inputs.arch }}", os: "${{ inputs.os }}", instances: "${{ inputs.instances }}", max_parallel: "${{ inputs.max_parallel }}" }
+    with: { domain: probe, profile: vm, matrix: "${{ needs.plan.outputs.vm }}", max_parallel: "${{ inputs.max_parallel }}" }
 
   # GitHub-hosted reference: a FAIL that also fails on every hosted runner is
   # reported PARITY and does not gate (we expose no more than GitHub does).
   h-capability:
-    if: contains(fromJSON('["all","container","vm","capability"]'), inputs.suite)
+    needs: plan
+    if: contains(fromJSON('["all","capability"]'), inputs.suite)
     uses: ./.github/workflows/_suite.yml
-    with: { domain: capability, profile: hosted, arch: "${{ inputs.arch }}", os: "${{ inputs.os }}", instances: "${{ inputs.instances }}", max_parallel: "${{ inputs.max_parallel }}" }
+    with: { domain: capability, profile: hosted, matrix: "${{ needs.plan.outputs.hosted }}", max_parallel: "${{ inputs.max_parallel }}" }
   h-security:
-    if: contains(fromJSON('["all","container","vm","security"]'), inputs.suite)
+    needs: plan
+    if: contains(fromJSON('["all","security"]'), inputs.suite)
     uses: ./.github/workflows/_suite.yml
-    with: { domain: security, profile: hosted, arch: "${{ inputs.arch }}", os: "${{ inputs.os }}", instances: "${{ inputs.instances }}", max_parallel: "${{ inputs.max_parallel }}" }
+    with: { domain: security, profile: hosted, matrix: "${{ needs.plan.outputs.hosted }}", max_parallel: "${{ inputs.max_parallel }}" }
   h-probe:
-    if: contains(fromJSON('["all","container","vm","probe"]'), inputs.suite)
+    needs: plan
+    if: contains(fromJSON('["all","probe"]'), inputs.suite)
     uses: ./.github/workflows/_suite.yml
-    with: { domain: probe, profile: hosted, arch: "${{ inputs.arch }}", os: "${{ inputs.os }}", instances: "${{ inputs.instances }}", max_parallel: "${{ inputs.max_parallel }}" }
+    with: { domain: probe, profile: hosted, matrix: "${{ needs.plan.outputs.hosted }}", max_parallel: "${{ inputs.max_parallel }}" }
 
   aggregate:
-    if: always()
-    needs: [c-capability, c-security, c-stress, c-probe,
+    # A failed plan already says what to select; there is nothing to aggregate.
+    if: always() && needs.plan.result == 'success'
+    needs: [plan,
+            c-capability, c-security, c-stress, c-probe,
             v-capability, v-security, v-stress, v-probe,
             h-capability, h-security, h-probe]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/aggregate-report
+        with:
+          labels: ${{ needs.plan.outputs.labels }}
       # A suite job that crashed before writing verdicts (setup failure, runner
       # lost, timeout) leaves no FAIL row, so verdicts alone would read green.
       # always(): otherwise a FAIL from the gate step above skips this check.
@@ -100,5 +142,5 @@ jobs:
           NEEDS: ${{ toJSON(needs) }}
         run: |
           bad=$(jq -r 'to_entries[] | select(.value.result == "failure" or .value.result == "cancelled") | "\(.key) \(.value.result)"' <<<"$NEEDS" | paste -sd, -)
-          echo "::error title=Suite job crashed::$bad. Their results are missing from the matrix above; check those jobs' logs (setup, lost runner, timeout, cancel)."
+          echo "::error title=Suite job crashed::$bad. Their results are missing from the matrix above; check those jobs' logs (setup, lost runner, timeout). A job cancelled while still queued means no runner serves its label: untick that label for this environment."
           exit 1

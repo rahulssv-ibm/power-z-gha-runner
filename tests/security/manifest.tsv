@@ -1,11 +1,11 @@
-# id	script	profiles	expected_container	expected_vm	issue
-host-escape	host-escape.sh	container,vm	PASS	PASS	-
-secret-leak	secret-leak.sh	container,vm	PASS	PASS	-
-cross-tenant	cross-tenant.sh	container,vm	PASS	PASS	-
-egress-abuse	egress-abuse.sh	container,vm	PASS	PASS	-
-resource-abuse	resource-abuse.sh	container	PASS	-	-
-egress-ports	egress-ports.sh	container,vm	PASS	PASS	9984-1,9984-3
-sudo-nopasswd	sudo-nopasswd.sh	container,vm	PASS	PASS	9984-4
-capabilities	capabilities.sh	container	PASS	-	9984-6
-group-membership	group-membership.sh	container,vm	PASS	PASS	9984-8
-algif-aead	alg-copy-fail.sh	container,vm	PASS	PASS	9984-5
+# id	script	profiles	expected_container	expected_vm	issue	fix
+host-escape	host-escape.sh	container,vm	PASS	PASS	-	Run jobs only in unprivileged LXD/Incus instances, never bind the host's lxd/incus unix.socket into them, and set kernel.dmesg_restrict=1 on container hosts. A sandbox-type FAIL means the label is not served by the sandbox it promises (container: lxc, VM: kvm/qemu).
+secret-leak	secret-leak.sh	container,vm	PASS	PASS	-	The job can read the runner's registration credentials (.credentials*) or sees runner/LXD/Incus tokens in its env. Start runners from a JIT config (run.sh --jitconfig) so no credential file is on disk in the sandbox, and keep those tokens out of the job env (lxd-app runner launch, action-runner-image-pz).
+cross-tenant	cross-tenant.sh	container,vm	PASS	PASS	-	Another user's ~/.ssh keys or shell history are readable: strip them from the runner image (action-runner-image-pz) and keep /root and /home/* at mode 700.
+egress-abuse	egress-abuse.sh	container,vm	PASS	PASS	-	Block the cloud metadata endpoint and mining pools: set container_egress_filter = true in the environment's terragrunt.hcl, regenerate its group_vars, then run setup_powervs_instances.yml --tags egress_filter (IBM Z: vpc-on-ibm-z tasks/container_egress_filter.yml).
+resource-abuse	resource-abuse.sh	container	PASS	-	-	Cap the container: set limits.processes and limits.kernel.nofile in the default profile (actions-deploy vars/container_driver.yml), then run --tags lxd_app_initial_setup. Only containers started after that get the caps.
+egress-ports	egress-ports.sh	container,vm	PASS	PASS	9984-1,9984-3	Turn on the egress allowlist (22/53/80/123/443 only): container_egress_filter = true in the environment's terragrunt.hcl, regenerate group_vars, run --tags egress_filter. Reads PARITY while egress is as open as on GitHub-hosted.
+sudo-nopasswd	sudo-nopasswd.sh	container,vm	PASS	PASS	9984-4	Accepted as parity with GitHub-hosted (9984-4): it gates only when the GitHub-hosted reference did not run. Narrowing it needs a targeted sudoers in action-runner-image-pz.
+capabilities	capabilities.sh	container	PASS	-	9984-6	Drop the host-reaching caps in the container profile: raw.lxc lxc.cap.drop=sys_module sys_rawio sys_time sys_boot (actions-deploy vars/container_driver.yml, lxd_remote_server_init.yml.j2; IBM Z preseeds), on existing hosts with --tags lxd_app_initial_setup. Only containers started after that drop them.
+group-membership	group-membership.sh	container,vm	PASS	PASS	9984-8	Take the runner user out of lxd/incus/incus-admin (usermod -aG in action-runner-image-pz scripts/{lxd,vm}.sh), then rebuild and publish the image (--tags build_lxd_image). group:docker reads PARITY.
+algif-aead	alg-copy-fail.sh	container,vm	PASS	PASS	9984-5	Keep AF_ALG out of reach (CVE-2026-31431): keep the container seccomp filter that blocks the AF_ALG socket, blocklist the module on the host (install algif_aead /bin/false) and patch the kernel.

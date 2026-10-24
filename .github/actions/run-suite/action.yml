@@ -7,13 +7,16 @@ inputs:
     description: Test domain (capability|security|stress|probe)
     required: true
   profile:
-    description: Runner profile (container|vm)
+    description: Runner profile (container|vm|hosted)
+    required: true
+  label:
+    description: The runs-on label this job got, e.g. ubuntu-24.04-ppc64le-p10
     required: true
   arch:
-    description: Architecture label (ppc64le|s390x)
+    description: Architecture of the label (ppc64le|s390x|x86_64|aarch64)
     required: true
   os:
-    description: Ubuntu version (22.04|24.04)
+    description: Ubuntu version of the label (22.04|24.04|...)
     required: true
   instance:
     description: Instance number when the suite is fanned out for load
@@ -31,6 +34,7 @@ runs:
       env:
         DOMAIN: ${{ inputs.domain }}
         PROFILE: ${{ inputs.profile }}
+        RUNNER_LABEL: ${{ inputs.label }}
         ARCH: ${{ inputs.arch }}
         OS: ${{ inputs.os }}
         INSTANCE: ${{ inputs.instance }}
@@ -38,22 +42,38 @@ runs:
         set -uo pipefail
         export RESULT_DIR="$RUNNER_TEMP/results"
         mkdir -p "$RESULT_DIR"
+        # Each test's output is a folded group in this log; a FAIL or WARN is
+        # followed by an unfolded block saying what failed and how to fix it.
         # The step shell runs with -e: capture rc instead of dying here.
         rc=0; bash tests/lib/runner.sh "$DOMAIN" || rc=$?
         # rc 1 = FAIL rows: the aggregate gates those (after the GitHub-hosted
         # parity check). Any other non-zero rc is a crash and fails the job.
-        if [ "$rc" -eq 1 ]; then rc=0; fi
+        if [ "$rc" -eq 1 ]; then
+          failed=$(awk -F'\t' '$7 == "FAIL" { printf "%s%s", s, $2; s = ", " }' "$RESULT_DIR/verdict-$DOMAIN.tsv")
+          echo "::warning title=$DOMAIN failed on $RUNNER_LABEL::$failed. The aggregate job decides which of these gate (after the GitHub-hosted comparison). What failed and how to fix it: this step's log, below each test's group."
+          rc=0
+        elif [ "$rc" -ne 0 ]; then
+          echo "::error title=$DOMAIN crashed on $RUNNER_LABEL::tests/lib/runner.sh exited $rc before finishing; see this step's log."
+        fi
         {
-          echo "## $DOMAIN / $PROFILE / $ARCH / $OS / #$INSTANCE"
+          echo "## $DOMAIN on $RUNNER_LABEL ($PROFILE, #$INSTANCE)"
           echo '```'
-          sed 's/\t/ | /g' "$RESULT_DIR/verdict-$DOMAIN.tsv" 2>/dev/null || echo "(no verdict file)"
+          awk -F'\t' '{ printf "%-6s %-22s %s\n", $7, $2, $8 }' "$RESULT_DIR/verdict-$DOMAIN.tsv" 2>/dev/null || echo "(no verdict file)"
           echo '```'
+          if [ -s "$RESULT_DIR/problems-$DOMAIN.md" ]; then
+            echo "### What failed and how to fix it"
+            echo '```'
+            cat "$RESULT_DIR/problems-$DOMAIN.md"
+            echo '```'
+          fi
         } >> "$GITHUB_STEP_SUMMARY"
         exit $rc
+    # The aggregate reads the label back from this name; keep the shape
+    # result-<domain>-<profile>-<label>-<instance>.
     - name: Upload results
       if: always()
       uses: actions/upload-artifact@v7
       with:
-        name: result-${{ inputs.domain }}-${{ inputs.profile }}-${{ inputs.arch }}-${{ inputs.os }}-${{ inputs.instance }}
+        name: result-${{ inputs.domain }}-${{ inputs.profile }}-${{ inputs.label }}-${{ inputs.instance }}
         path: ${{ runner.temp }}/results
         retention-days: 14

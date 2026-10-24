@@ -29,12 +29,19 @@ and stress runs below would execute on production runners.
 | container | `ubuntu-22.04-ppc64le-p10`, `ubuntu-24.04-ppc64le-p10`, `ubuntu-22.04-s390x`, `ubuntu-24.04-s390x` |
 | vm        | `ubuntu-22.04-ppc64le-vm`, `ubuntu-24.04-ppc64le-vm` (no s390x VM runners yet) |
 
+Environments serve different label sets, so each run selects its labels on
+the **run-all** form (one checkbox per label, plus a free-text `labels` field
+for any other `ubuntu-<os>-<arch>[-...][-vm]` label). With nothing selected
+the run uses the `RUNNER_LABELS` repository variable. For example, the pentest
+environment serves only `ubuntu-24.04-ppc64le` (P9) and
+`ubuntu-24.04-ppc64le-p10` (P10), both containers.
+
 ## Before you start
 
 1. Deploy the change to staging and write down exactly what is deployed
    (versions, commit, config diff). Results mean nothing without it.
-2. Check that staging runners are online for all six labels. A label with
-   no online runner leaves its jobs queued until they time out.
+2. Check that staging runners are online for every label you will select. A
+   label with no online runner leaves its jobs queued until they time out.
 3. If staging has both LXD and Incus hosts, make sure both will receive jobs.
    The run's summary lists which backend served each probe job (see "Probe"
    below).
@@ -48,13 +55,12 @@ Actions → **run-all** → Run workflow, on `main`:
 | Input          | Value |
 |----------------|-------|
 | `suite`        | `all` |
-| `arch`         | `all` |
-| `os`           | `all` |
+| runner labels  | every label the environment serves (the six above for staging) |
 | `instances`    | `1`   |
 | `max_parallel` | `25`  |
 
 This runs every domain (capability, security, stress, probe) on every
-container and VM label. Each job is capped at 120 minutes.
+selected container and VM label. Each job is capped at 120 minutes.
 
 ## Step 2: load run
 
@@ -66,14 +72,13 @@ Run once per architecture:
 | Input          | ppc64le run | s390x run |
 |----------------|-------------|-----------|
 | `suite`        | `stress`    | `stress`  |
-| `arch`         | `ppc64le`   | `s390x`   |
-| `os`           | `all`       | `all`     |
+| runner labels  | the ppc64le labels | the s390x labels |
 | `instances`    | `100`       | `100`     |
 | `max_parallel` | `25`        | `25`      |
 
-Each suite workflow fans out `labels × instances` jobs, and GitHub caps one
-matrix at 256 jobs. Two labels × 100 = 200 fits; `arch=all` with 100
-instances does not, and the run stops at the setup job with that message.
+Each suite workflow fans out `labels × instances` jobs per profile, and GitHub
+caps one matrix at 256 jobs. Two labels × 100 = 200 fits; three do not, and
+the run stops at the `plan` job with that message.
 The container and VM suites run side by side, so peak concurrency is up to
 twice `max_parallel`.
 
@@ -93,7 +98,7 @@ runs.
 | Check | Required |
 |-------|----------|
 | `aggregate` job | Green. It fails on any `FAIL`, on any suite job that crashed or was cancelled, and when no results arrived. |
-| Coverage | All six labels appear in the results table. A missing label means its jobs never ran. |
+| Coverage | Every selected label appears in the results table. The report lists any selected label with no results by name. |
 | Security | Every row `PASS` on every label, except known findings listed under "Known findings". |
 | Capability | No `FAIL`. `XFAIL` on container rows is expected. |
 | Capability `WARN` | Each one explained before promoting (see below). |
@@ -114,10 +119,15 @@ give you a feel for normal variation.
 **Where to look:**
 
 - **Run summary page, `aggregate` job:** one table for the whole run. Failing
-  rows first; columns are domain, test, profile, arch, os, result, runs, p50
-  and p95 duration.
+  rows first; columns are domain, test, profile, label, result, runs, p50
+  and p95 duration. Below it, "What failed and how to fix it" has one entry
+  per failing test: the labels, each failed check with its reason, the fix,
+  and where the log is. The same entries are annotations on the run page.
+- **Each suite job's `Run <domain>` step:** every test's output as a folded
+  group, then an unfolded block for each `FAIL`/`WARN` with the failed checks,
+  the last log lines and the fix.
 - **`summary` artifact** (kept 30 days): the same data as `summary.csv`.
-- **`result-<domain>-<profile>-<arch>-<os>-<n>` artifacts** (kept 14 days),
+- **`result-<domain>-<profile>-<label>-<n>` artifacts** (kept 14 days),
   one per job:
   - `verdict-<domain>.tsv`: one line per test
   - `detail-<domain>.tsv`: one line per individual check, with the reason
@@ -157,10 +167,11 @@ cat /tmp/r/detail-security.tsv
 ## When something fails
 
 1. Do not promote.
-2. Find the failing rows in the `aggregate` table, then the reason in that
-   job's `detail-*.tsv` and `logs/`.
-3. Rule out a flake: dispatch a new run narrowed to the failure with `suite`,
-   `arch`, and `os`. A test that fails twice is a regression.
+2. Read the failing test's entry under "What failed and how to fix it" in
+   the `aggregate` summary: failed checks, reasons, the fix. For more, expand
+   the test's group in the suite job's `Run <domain>` step.
+3. Rule out a flake: dispatch a new run narrowed to the failure with `suite`
+   and only the failing labels ticked. A test that fails twice is a regression.
 4. Open an issue with the run link, the failing rows, and the change under
    test. Fix in staging and repeat from Step 1.
 

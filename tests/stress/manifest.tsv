@@ -1,7 +1,7 @@
-# id	script	profiles	expected_container	expected_vm	issue
-cpu-mem	cpu-mem.sh	vm	-	PASS	-
-disk-io	disk-io.sh	vm	-	PASS	-
-container-lifecycle	container-lifecycle.sh	vm	-	PASS	-
-kube-scale	kube-scale.sh	vm	-	PASS	-
-network	network.sh	container,vm	PASS	PASS	-
-build-source	build-source.sh	vm	-	PASS	-
+# id	script	profiles	expected_container	expected_vm	issue	fix
+cpu-mem	cpu-mem.sh	vm	-	PASS	-	stress-ng failed under load: check the VM's CPU/memory limits and the host for OOM kills (log tail).
+disk-io	disk-io.sh	vm	-	PASS	-	fio failed: the VM needs 2G free on its disk; check the storage pool on the host.
+container-lifecycle	container-lifecycle.sh	vm	-	PASS	-	Parallel docker container churn failed: check docker in the VM and disk or inode exhaustion.
+kube-scale	kube-scale.sh	vm	-	PASS	-	Scaling the kind deployment failed: check the 'Setup kind' step and the VM's CPU/memory.
+network	network.sh	container,vm	PASS	PASS	-	DNS, docker pulls or git clones failed under concurrency: check DNS, the bridge MTU (issue #59) and that the egress filter allows 53 and 443.
+build-source	build-source.sh	vm	-	PASS	-	The redis build from source failed: read the log tail (toolchain, network or disk).

@@ -5,69 +5,18 @@ on:
     inputs:
       domain:       { required: true, type: string }
       profile:      { required: true, type: string }   # container | vm | hosted
-      arch:         { required: true, type: string }
-      os:           { required: true, type: string }
-      instances:    { required: false, type: string, default: "1" }
+      # {"include": [{"label", "arch", "os", "instance"}, ...]}, built by run-all's plan job
+      matrix:       { required: true, type: string }
       max_parallel: { required: false, type: string, default: "25" }
 
 jobs:
-  setup:
-    runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.m.outputs.matrix }}
-    steps:
-      - id: m
-        shell: bash
-        env:
-          PROFILE: ${{ inputs.profile }}
-          ARCH: ${{ inputs.arch }}
-          OS: ${{ inputs.os }}
-          INSTANCES: ${{ inputs.instances }}
-        run: |
-          python3 - "$PROFILE" "$ARCH" "$OS" "$INSTANCES" <<'PY' >> "$GITHUB_OUTPUT"
-          import json, sys
-          profile, arch, osv, n = sys.argv[1], sys.argv[2], sys.argv[3], int(sys.argv[4])
-          labels = {
-            "container": [
-              ("ubuntu-22.04-ppc64le-p10", "ppc64le", "22.04"),
-              ("ubuntu-24.04-ppc64le-p10", "ppc64le", "24.04"),
-              ("ubuntu-22.04-s390x", "s390x", "22.04"),
-              ("ubuntu-24.04-s390x", "s390x", "24.04"),
-            ],
-            # Only labels a runner serves: a job on an unserved label stays queued
-            # and the aggregate never reports. Add ubuntu-2x.04-s390x-vm once
-            # s390x VM runners exist.
-            "vm": [
-              ("ubuntu-22.04-ppc64le-vm", "ppc64le", "22.04"),
-              ("ubuntu-24.04-ppc64le-vm", "ppc64le", "24.04"),
-            ],
-            # GitHub-hosted reference for the parity gate: every arch, one copy.
-            "hosted": [
-              ("ubuntu-22.04", "x86_64", "22.04"),
-              ("ubuntu-24.04", "x86_64", "24.04"),
-              ("ubuntu-22.04-arm", "aarch64", "22.04"),
-              ("ubuntu-24.04-arm", "aarch64", "24.04"),
-            ],
-          }[profile]
-          if profile == "hosted":
-              arch, n = "all", 1
-          sel = [{"label": l, "arch": a, "os": o, "instance": i}
-                 for l, a, o in labels if arch in ("all", a) and osv in ("all", o)
-                 for i in range(1, n + 1)]
-          if len(sel) > 256:
-              sys.exit(f"{len(sel)} jobs exceeds GitHub's 256-per-matrix limit: narrow arch/os or lower instances")
-          print("matrix=" + json.dumps({"include": sel}))
-          PY
-
   test:
-    needs: setup
-    if: ${{ fromJSON(needs.setup.outputs.matrix).include[0] != null }}
     name: ${{ inputs.domain }} ${{ matrix.label }} #${{ matrix.instance }}
     timeout-minutes: 120
     strategy:
       fail-fast: false
       max-parallel: ${{ fromJSON(inputs.max_parallel) }}
-      matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
+      matrix: ${{ fromJSON(inputs.matrix) }}
     runs-on: ${{ matrix.label }}
     steps:
       - uses: actions/checkout@v7
@@ -75,6 +24,7 @@ jobs:
         with:
           domain: ${{ inputs.domain }}
           profile: ${{ inputs.profile }}
+          label: ${{ matrix.label }}
           arch: ${{ matrix.arch }}
           os: ${{ matrix.os }}
           instance: ${{ matrix.instance }}
