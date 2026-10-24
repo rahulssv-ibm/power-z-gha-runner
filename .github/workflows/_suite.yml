@@ -11,7 +11,8 @@ on:
 
 jobs:
   test:
-    name: ${{ inputs.domain }} ${{ matrix.label }} #${{ matrix.instance }}
+    # Quoted: unquoted, ' #...' is a YAML comment and every instance shares one name.
+    name: "${{ inputs.domain }} ${{ matrix.label }} #${{ matrix.instance }}"
     timeout-minutes: 120
     strategy:
       fail-fast: false
