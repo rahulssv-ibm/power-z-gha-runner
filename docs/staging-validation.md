@@ -206,8 +206,9 @@ staging blocks.
   also runs on VMs and GitHub-hosted, where the job owns its kernel and a
   runaway stops at that VM's `threads-max` (~127k on a hosted 16 GB VM, which
   also sets `ulimit -u` 63795), so hosted rows `PASS` and ours read "only here".
-  `limits.processes: "65536"` matches the hosted per-job ceiling and keeps four
-  jobs under the host's `threads-max`.
+  `limits.processes: "65536"` on PowerVS matches the hosted per-job ceiling and
+  keeps four jobs under the host's `threads-max`. IBM Z uses `"49152"`: an
+  s390x host's `threads-max` is 257244, which four jobs at 65536 would exceed.
 - **`security/egress-abuse`, `mining-egress`.** Fails when outbound traffic
   to known crypto-mining pools is not blocked.
 - **`security/host-escape`, `sandbox-type` on VMs.** Expects `kvm` or `qemu`
