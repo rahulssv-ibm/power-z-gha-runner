@@ -218,9 +218,13 @@ row flips to `PASS` once its fix reaches the label under test.
   (`container-egress-filter.policy.xml`), IBM Z via a `GHA_EGRESS` allowlist
   chain in both iptables and ip6tables (`vpc-on-ibm-z`
   `tasks/container_egress_filter.yml`, persisted with netfilter-persistent;
-  v6 included because `lxdbr0` has `ipv6.nat`). Both allow 22/53/80/123/443 and
-  reject the rest. Applied on provision/rebuild (rides the init block), so
-  enabling it on an already-provisioned host needs a reprovision.
+  v6 included because `lxdbr0` has `ipv6.nat`). Both allow the ports builds use
+  (22/53/80/123/443, 873, 9418, 11371, 8080, 8443, 5000, 587, 465, 5432, 3306,
+  6379, 27017) and reject the rest. `capability/egress-reach` checks that list
+  against GitHub-hosted: a port open there but blocked here `FAIL`s as "only
+  here", so parity and this row hold together. Applied on provision/rebuild
+  (rides the init block), so enabling it on an already-provisioned host needs
+  a reprovision.
 - **`security/capabilities` (9984-6).** Container keeps host-reaching caps
   (`CAP_SYS_MODULE`/`RAWIO`/`TIME`/`BOOT`). Container-only, no hosted
   reference, so it `FAIL`s until the `lxc.cap.drop` fix reaches the label. Fix
