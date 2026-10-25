@@ -8,6 +8,9 @@ script duration. Exits 1 on any FAIL, or when no results arrived at all.
 GitHub-hosted runners (profile "hosted") are the reference, never gated: our
 FAIL becomes PARITY when every check it failed also failed on every hosted
 runner that ran the test, i.e. we expose nothing GitHub-hosted does not.
+A FAIL becomes KNOWN (not gating either) when each check it failed is parity
+or an accepted known finding in tests/known-findings.tsv; any other check
+keeps it FAIL, so a new leak in an accepted test still gates.
 
 Every FAIL is then explained: where it failed, the reason each failed check
 gave (detail-*.tsv next to the verdict), how to fix it (the fix column of
@@ -83,6 +86,30 @@ def hints(root="."):
     return out
 
 
+def known(root="."):
+    """(domain, id) -> {check: why it is accepted}, from tests/known-findings.tsv."""
+    out = defaultdict(dict)
+    p = os.path.join(root, "tests", "known-findings.tsv")
+    if os.path.exists(p):
+        with open(p) as f:
+            for line in f:
+                cols = line.rstrip("\n").split("\t")
+                if len(cols) >= 4 and not cols[0].startswith("#"):
+                    out[(cols[0], cols[1])][cols[2]] = cols[3]
+    return out
+
+
+def accept(rows, accepted):
+    """Downgrade our FAIL to KNOWN when every failed check is parity or an accepted known finding."""
+    for r in rows:
+        ok = set(accepted.get((r["domain"], r["id"]), ()))
+        r["accepted"] = r["fails"] & ok   # versus() leaves these out of "only here"
+        if (r["profile"] != "hosted" and r["status"] == "FAIL" and r["fails"] & ok
+                and r["fails"] <= ok | (r["ref"] or set())):
+            r["status"] = "KNOWN"
+    return rows
+
+
 def parity(rows):
     """Downgrade our FAIL to PARITY when GitHub-hosted fails the same checks."""
     ref = defaultdict(list)
@@ -102,11 +129,11 @@ def parity(rows):
 
 def versus(bad):
     """How our failing rows compare with GitHub-hosted."""
-    if all(x["status"] == "PARITY" for x in bad):
-        return "fails there too"
+    if not any(x["status"] == "FAIL" for x in bad):
+        return "known finding" if any(x["status"] == "KNOWN" for x in bad) else "fails there too"
     if any(x["ref"] is None for x in bad if x["status"] == "FAIL"):
         return "not run on GitHub-hosted"
-    only = set().union(*(x["fails"] - x["ref"] for x in bad if x["status"] == "FAIL"))
+    only = set().union(*(x["fails"] - x["ref"] - x.get("accepted", set()) for x in bad if x["status"] == "FAIL"))
     return "only here: " + ", ".join(sorted(only)) if only else "failed without naming a check"
 
 
@@ -153,7 +180,7 @@ def esc(s):
     return s.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
 
 
-def explain(fails, warns, parities, fixes):
+def explain(fails, warns, parities, fixes, knowns=(), accepted=None):
     """Markdown: what failed, why, and how to fix it; plus the annotations for the run page."""
     lines, notes = [], []
     if fails:
@@ -182,6 +209,15 @@ def explain(fails, warns, parities, fixes):
                   "something it did not. Explain it before promoting; if intended, set the test's "
                   "expected result to `PASS` in `tests/<domain>/manifest.tsv`.", ""]
         lines += [f"- `{d}/{i}` on {runs_on(rs)}" for (d, i), rs in sorted(warns.items(), key=lambda kv: order(kv[0]))]
+    if knowns:
+        lines += ["", "## Known findings (KNOWN, accepted, do not gate)", "",
+                  "Listed in `tests/known-findings.tsv`. A check not listed there, and not failing on "
+                  "GitHub-hosted too, turns the test back into a FAIL.", ""]
+        for (d, i), rs in sorted(knowns.items(), key=lambda kv: order(kv[0])):
+            why = accepted.get((d, i), {})
+            lines.append(f"- `{d}/{i}` on {runs_on(rs)}:")
+            lines += [f"  - `{c}`: " + (f"accepted: {why[c]}" if c in why else "same as GitHub-hosted")
+                      for c in checks_of(rs)]
     if parities:
         lines += ["", "## Same as GitHub-hosted (PARITY, does not gate)", ""]
         for (d, i), rs in sorted(parities.items(), key=lambda kv: order(kv[0])):
@@ -190,9 +226,9 @@ def explain(fails, warns, parities, fixes):
     return lines, notes
 
 
-def report(rows, fixes=None, selected=()):
+def report(rows, fixes=None, selected=(), accepted=None):
     """Our runners' matrix (gating), why each FAIL failed, plus the GitHub-hosted reference."""
-    fixes = fixes or {}
+    fixes, accepted = fixes or {}, accepted or {}
     ours = [r for r in rows if r["profile"] != "hosted"]
     ref = [r for r in rows if r["profile"] == "hosted"]
     groups = defaultdict(list)
@@ -202,15 +238,17 @@ def report(rows, fixes=None, selected=()):
     lines = ["# Test suite results", "",
              f"- Checks: **{len(ours)}** across **{len(groups)}** test/runner combinations"
              + (f", plus **{len(ref)}** on the GitHub-hosted reference" if ref else ""),
-             f"- FAIL: **{total['FAIL']}**  PARITY: **{total['PARITY']}**  WARN: **{total['WARN']}**  "
+             f"- FAIL: **{total['FAIL']}**  PARITY: **{total['PARITY']}**  KNOWN: **{total['KNOWN']}**  "
+             f"WARN: **{total['WARN']}**  "
              f"PASS: **{total['PASS']}**  XFAIL: **{total['XFAIL']}**  "
              f"INFO: **{total['INFO']}**  SKIP: **{total['SKIP']}**",
              "- PARITY: fails exactly as on GitHub-hosted runners, so it does not gate",
+             "- KNOWN: fails only on checks that are parity or accepted known findings; does not gate",
              "- Each FAIL is explained, with how to fix it, below the table",
              "",
              "| domain | id | profile | label | result | runs | p50 | p95 | failing checks | vs GitHub-hosted |",
              "|---|---|---|---|---|---:|---:|---:|---|---|"]
-    fails, warns, parities = defaultdict(list), defaultdict(list), defaultdict(list)
+    fails, warns, parities, knowns = defaultdict(list), defaultdict(list), defaultdict(list), defaultdict(list)
     for key, rs in sorted(groups.items(),
                           key=lambda kv: (not any(x["status"] == "FAIL" for x in kv[1]), order(kv[0]))):
         c = Counter(x["status"] for x in rs)
@@ -218,13 +256,14 @@ def report(rows, fixes=None, selected=()):
         durs = [x["dur"] for x in rs if x["dur"] is not None]
         p50 = f"{pct(durs, 0.5):.0f}s" if durs else "-"
         p95 = f"{pct(durs, 0.95):.0f}s" if durs else "-"
-        bad = [x for x in rs if x["status"] in ("FAIL", "PARITY")]
+        bad = [x for x in rs if x["status"] in ("FAIL", "PARITY", "KNOWN")]
         checks = ", ".join(sorted(set().union(*(x["fails"] for x in bad))))
         vs = versus(bad) if bad else ""
         lines.append(f"| {' | '.join(key)} | {result} | {len(rs)} | {p50} | {p95} | {checks} | {vs} |")
         for x in rs:
-            {"FAIL": fails, "WARN": warns, "PARITY": parities}.get(x["status"], {}).setdefault(key[:2], []).append(x)
-    more, notes = explain(fails, warns, parities, fixes)
+            {"FAIL": fails, "WARN": warns, "PARITY": parities,
+             "KNOWN": knowns}.get(x["status"], {}).setdefault(key[:2], []).append(x)
+    more, notes = explain(fails, warns, parities, fixes, knowns, accepted)
     lines += more
     missing = [lb for lb in selected if lb and lb not in {r["label"] for r in ours}]
     if missing:
@@ -322,6 +361,18 @@ def selftest():
     # a selected label that reported nothing is named
     assert "## Labels with no results" in md and "- `ubuntu-24.04-s390x`" in md, md
     assert errors[1].startswith("::warning title=No results from ubuntu-24.04-s390x::"), errors
+    # KNOWN: every failed check is parity or accepted; an unlisted extra check stays FAIL
+    href = [mk("k", "FAIL", 1, "hosted", {"pub"})]
+    ours = [mk("k", "FAIL", 1, fails={"pub", "key"}, label="A"), mk("k", "FAIL", 1, fails={"key"}, label="B"),
+            mk("k", "FAIL", 1, fails={"pub", "key", "token"}, label="C"), mk("k", "FAIL", 1, label="D")]
+    acc = {("security", "k"): {"key": "ephemeral, dies with the job"}}
+    accept(parity(href + ours), acc)
+    assert [r["status"] for r in ours] == ["KNOWN", "KNOWN", "FAIL", "FAIL"], ours
+    md, nfail, errors = report(href + ours, {}, (), acc)
+    assert nfail == 2 and "KNOWN: **2**" in md, md
+    assert "| security | k | container | A | KNOWN | 1 | 1s | 1s | key, pub | known finding |" in md, md
+    assert "  - `key`: accepted: ephemeral, dies with the job" in md and "  - `pub`: same as GitHub-hosted" in md, md
+    assert "only here: token" in md, md
     # WARN rows are listed for an explanation, never gated
     md, nfail, _ = report([mk("w", "WARN", 1) | {"ref": None}])
     assert nfail == 0 and "## Needs an explanation (WARN)" in md and "- `security/w` on container L" in md, md
@@ -345,6 +396,9 @@ def selftest():
                     "egress\te.sh\tcontainer\tPASS\tPASS\t-\tturn the filter on\n"
                     "other\to.sh\tcontainer\tPASS\tPASS\t-\t-\n")
         assert hints(t) == {("security", "egress"): "turn the filter on"}, hints(t)
+        with open(os.path.join(t, "tests", "known-findings.tsv"), "w") as f:
+            f.write("# domain\tid\tcheck\twhy\nsecurity\tegress\tport:irc\tbecause\n")
+        assert known(t) == {("security", "egress"): {"port:irc": "because"}}, known(t)
     assert sandboxes([]) == ""
     print("summarize selftest: OK")
     return 0
@@ -353,10 +407,11 @@ def selftest():
 def main():
     if "--selftest" in sys.argv:
         return selftest()
-    rows = parity(load(glob.glob("raw/**/verdict-*.tsv", recursive=True)))
+    accepted = known()
+    rows = accept(parity(load(glob.glob("raw/**/verdict-*.tsv", recursive=True))), accepted)
     selected = [x for x in os.environ.get("SELECTED_LABELS", "").split(",") if x]
     if rows:
-        md, nfail, errors = report(rows, hints(), selected)
+        md, nfail, errors = report(rows, hints(), selected, accepted)
     else:
         md, nfail, errors = "# Test suite results\n\n**No results found** — no suite job produced verdicts.\n", 0, []
     md += sandboxes(glob.glob("raw/**/detail-probe.tsv", recursive=True))

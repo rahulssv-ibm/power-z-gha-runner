@@ -1,0 +1,5 @@
+# Accepted known findings: the aggregate reports these checks as KNOWN and does
+# not gate on them. One row per check id, never per test, so anything else the
+# test catches still FAILs. Say why it is accepted and who decided, and when.
+# domain	id	check	why it is accepted
+security	secret-leak	cred-read:.credentials_rsaparams	The runner's private key; the job (same user, with sudo) can read it, and GitHub-hosted has no such file. Accepted as a known finding 2026-10-25: runners are --ephemeral in a per-job container, so the key is good only for the registration of the job that could steal it.

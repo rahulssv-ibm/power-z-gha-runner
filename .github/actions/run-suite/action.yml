@@ -50,7 +50,7 @@ runs:
         # parity check). Any other non-zero rc is a crash and fails the job.
         if [ "$rc" -eq 1 ]; then
           failed=$(awk -F'\t' '$7 == "FAIL" { printf "%s%s", s, $2; s = ", " }' "$RESULT_DIR/verdict-$DOMAIN.tsv")
-          echo "::warning title=$DOMAIN failed on $RUNNER_LABEL::$failed. The aggregate job decides which of these gate (after the GitHub-hosted comparison). What failed and how to fix it: this step's log, below each test's group."
+          echo "::warning title=$DOMAIN failed on $RUNNER_LABEL::$failed. The aggregate job decides which of these gate (after the GitHub-hosted comparison and tests/known-findings.tsv). What failed and how to fix it: this step's log, below each test's group."
           rc=0
         elif [ "$rc" -ne 0 ]; then
           echo "::error title=$DOMAIN crashed on $RUNNER_LABEL::tests/lib/runner.sh exited $rc before finishing; see this step's log."

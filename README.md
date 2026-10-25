@@ -113,7 +113,15 @@ id   script   profiles   expected_container   expected_vm   issue   fix
   log and the aggregate report. Name the setting and where it lives (repo, file,
   Ansible tag), not just the symptom. `-` when there is nothing to fix (`INFO`).
 
-Verdict vocabulary: `PASS FAIL XFAIL WARN INFO SKIP PARITY`. Only `FAIL` fails the gate.
+Verdict vocabulary: `PASS FAIL XFAIL WARN INFO SKIP PARITY KNOWN`. Only `FAIL` fails the gate.
+
+## Known findings
+
+`tests/known-findings.tsv` lists checks accepted as known findings, one row per
+check id (`domain id check why`). The aggregate reports a FAIL as `KNOWN` (not
+gating) when every check it failed is either listed there or fails on
+GitHub-hosted too; any other check keeps it `FAIL`, so a new leak in an
+accepted test still gates. Say in the row why it is accepted and since when.
 
 ## Add a test
 

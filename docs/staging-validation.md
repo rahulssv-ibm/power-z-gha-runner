@@ -147,6 +147,7 @@ the baseline for the next promotion.
 | `INFO`  | Probe output, never gates | No |
 | `SKIP`  | Not applicable on this runner | No |
 | `PARITY` | Failed, but GitHub-hosted runners fail the same checks | No |
+| `KNOWN` | Failed only on accepted known findings (`tests/known-findings.tsv`) or parity checks | No |
 
 **Probe.** Below the results table, the `aggregate` summary has a
 "Sandboxes that ran the probe" table: profile, arch, os, virt type, and
@@ -195,7 +196,18 @@ staging blocks.
   as "only here". The listener writes both files whether it is registered with
   `config.sh` or `--jitconfig`, so JIT alone does not remove them. Runners are
   `--ephemeral` in a per-job container, which limits a stolen key to the
-  registration of the job that stole it. Track it as a known finding.
+  registration of the job that stole it. Accepted as a known finding
+  (2026-10-25): `cred-read:.credentials_rsaparams` is listed in
+  `tests/known-findings.tsv`, so the test reads `KNOWN` and does not gate. A
+  token in the job env (`env-token`) or any new file still `FAIL`s.
+- **`security/resource-abuse`, `pids-cap`.** Containers share the host kernel;
+  without `limits.processes` a runaway job draws on the host's `threads-max`
+  (~570k on the pentest workers), shared by every job on that host. The test
+  also runs on VMs and GitHub-hosted, where the job owns its kernel and a
+  runaway stops at that VM's `threads-max` (~127k on a hosted 16 GB VM, which
+  also sets `ulimit -u` 63795), so hosted rows `PASS` and ours read "only here".
+  `limits.processes: "65536"` matches the hosted per-job ceiling and keeps four
+  jobs under the host's `threads-max`.
 - **`security/egress-abuse`, `mining-egress`.** Fails when outbound traffic
   to known crypto-mining pools is not blocked.
 - **`security/host-escape`, `sandbox-type` on VMs.** Expects `kvm` or `qemu`
