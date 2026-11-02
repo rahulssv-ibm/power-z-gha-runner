@@ -1,0 +1,13 @@
+name: net10 runner test
+on: workflow_dispatch
+jobs:
+  smoke:
+    runs-on: ubuntu-24.04-ppc64le
+    steps:
+      - uses: actions/checkout@v7   # node24 JS action on ppc64le
+      - name: Runner is on .NET 10
+        run: |
+          uname -m
+          echo "RUNNER_ARCH=$RUNNER_ARCH"
+          grep -E '"(tfm|version)"' "$RUNNER_WORKSPACE/../../bin/Runner.Worker.runtimeconfig.json"
+          dotnet --list-runtimes
