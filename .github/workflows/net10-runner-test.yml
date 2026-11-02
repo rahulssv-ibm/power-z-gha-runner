@@ -9,5 +9,9 @@ jobs:
         run: |
           uname -m
           echo "RUNNER_ARCH=$RUNNER_ARCH"
-          grep -E '"(tfm|version)"' "$RUNNER_WORKSPACE/../../bin/Runner.Worker.runtimeconfig.json"
-          dotnet --list-runtimes
+          # The step shell's parent is Runner.Worker, wherever the runner and work dir live
+          worker=$(readlink -f /proc/$PPID/exe)
+          echo "worker: $worker"
+          grep -E '"(tfm|version)"' "$(dirname "$worker")/Runner.Worker.runtimeconfig.json"
+          # .NET runtime the worker has actually loaded
+          grep -oE '[^ ]*/Microsoft\.NETCore\.App/[0-9.]+' /proc/$PPID/maps | sort -u
